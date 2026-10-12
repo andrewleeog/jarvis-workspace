@@ -3514,6 +3514,7 @@ async function _chatStream(body, pid, signal) {
         const j = await res.json();
         const d = j?.detail;
         err.message = (typeof d === 'string' ? d : d?.message) || err.message;
+        if (d && typeof d === 'object' && d.error) err.codigo = d.error;   // p.ej. no_cli → «Instalar»
       } catch {}
     }
     throw err;
@@ -3603,7 +3604,7 @@ function _accionErrorChat(codigo) {
   if (codigo === 'login' || codigo === 'limite') {
     toast(_sbT(codigo === 'login' ? 'Jarvis necesita una sesión de Claude' : 'La cuenta de Claude llegó a su límite'),
       'warning', 12000, { accion: { texto: _sbT('Abrir Cuentas'), alHacer: () => window.JarvisSettings?.open?.('cuentas') } });
-  } else if (codigo === 'no_instalado' && window.JarvisCliInstalar?.instalar) {
+  } else if ((codigo === 'no_instalado' || codigo === 'no_cli') && window.JarvisCliInstalar?.instalar) {
     toast(_sbT('Falta el CLI de Claude'), 'warning', 12000,
       { accion: { texto: _sbT('Instalar'), alHacer: async () => {
         const CI = window.JarvisCliInstalar;

@@ -1158,7 +1158,8 @@ def _guard_cli():
     """409 estructurado si el CLI `claude` no está disponible (modo
     suscripción). Espejo de _guard_api_key para el motor nuevo."""
     import shutil
-    if not shutil.which('claude'):
+    from plotspace.core import orq_cli
+    if not shutil.which(orq_cli.BIN):     # el MISMO binario que después se ejecuta
         raise HTTPException(status_code=409, detail={
             "error": "no_cli",
             "message": L("El orquestador corre con tu suscripción de Claude vía "

@@ -116,10 +116,11 @@ def test_chat_sin_stream_devuelve_detalle_estructurado(tmp_path, monkeypatch):
     assert det['error'] == 'limite' and '3pm' in det['message']
 
 
-def test_cli_no_instalado(monkeypatch):
+def test_cli_no_instalado_es_el_409_no_cli(monkeypatch):
+    # El guard mira el MISMO binario que se ejecuta (orq_cli.BIN), no `claude`
+    # a secas: sin esto el resultado dependía de si la máquina lo tenía instalado.
     fresh_db()
     pid = _proyecto(tempfile.mkdtemp())
     c = _cliente(monkeypatch, os.path.join(tempfile.mkdtemp(), 'no-existe-claude'))
     r = c.post('/api/orchestrator/chat-stream', json={'project_id': pid, 'message': 'hola'})
-    err = [json.loads(l[5:]) for l in r.text.split('\n\n') if l.startswith('data:') and '"error"' in l]
-    assert err and err[0]['codigo'] == 'no_instalado', r.text
+    assert r.status_code == 409 and r.json()['detail']['error'] == 'no_cli', r.text
