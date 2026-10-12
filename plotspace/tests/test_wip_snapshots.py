@@ -154,3 +154,27 @@ def test_el_resumen_del_janitor_reporta_los_fallos():
 if __name__ == '__main__':
     import pytest
     raise SystemExit(pytest.main([__file__, '-q']))
+
+
+def test_primera_foto_al_minuto_de_arrancar(monkeypatch):
+    """Cada "Update now" reinicia el proceso: con la primera foto a los 30 min
+    casi nunca salía en una sesión real. Tiene que salir al minuto."""
+    import asyncio
+    from plotspace.core import mantenimiento, wip_snapshots
+
+    esperas, fotos = [], []
+
+    async def _sleep(s):
+        esperas.append(s)
+        if len(esperas) >= 2:            # cortar el loop infinito del poller
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(mantenimiento, 'respaldar_db', lambda: {'backup': None, 'espejo': None})
+    monkeypatch.setattr(wip_snapshots, 'snapshots_todos', lambda: fotos.append(1) or {'fotos': 0, 'fallos': 0})
+    monkeypatch.setattr(mantenimiento.asyncio, 'sleep', _sleep)
+    try:
+        asyncio.run(mantenimiento.poller_purga_logs())
+    except asyncio.CancelledError:
+        pass
+    assert esperas[0] <= 60, esperas
+    assert fotos == [1], 'la primera foto tiene que salir antes del ciclo de 30 min'

@@ -226,3 +226,115 @@ def test_stop_con_server_caido_no_rompe(monkeypatch, capsys):
     monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps({'hook_event_name': 'Stop'})))
     hook.main()
     assert capsys.readouterr().out == ''
+
+
+# ─── Guardia de git destructivo (PreToolUse Bash) ─────────────────────────────
+# En un árbol que comparten varios agentes, `git stash`, `reset --hard`,
+# `clean -f`, `checkout -- .`, `add -A` o `commit -a` se llevan (o barren) el
+# trabajo SIN commitear de TODOS. El hook los frena antes de que corran, con un
+# motivo que le dice al agente qué hacer en su lugar. Es local: no llama al server.
+
+import pytest  # noqa: E402
+
+PELIGROSOS = [
+    'git stash',
+    'git stash push -m wip',
+    'git stash -u',
+    'cd sub && git stash pop',
+    'git reset --hard',
+    'git reset --hard HEAD~1',
+    'git -C otra reset --hard origin/main',
+    'git clean -fd',
+    'git clean -xdf',
+    'git clean --force',
+    'git checkout -- .',
+    'git checkout .',
+    'git checkout -f main',
+    'git checkout HEAD -- src/app.py',
+    'git restore .',
+    'git restore src/app.py',
+    'git switch --discard-changes main',
+    'git add -A',
+    'git add --all',
+    'git add .',
+    'git add -u',
+    'git commit -am "fix: algo"',
+    'git commit -a -m x',
+    'git commit --all -m x',
+    'npm test && git add -A && git commit -m x',
+    'FOO=1 git stash',
+    'sudo git reset --hard',
+]
+
+SEGUROS = [
+    'git status',
+    'git diff',
+    'git log --oneline -5',
+    'git stash list',
+    'git stash show -p',
+    'git add src/app.py tests/test_app.py',
+    'git commit -m "feat: add login"',
+    'git commit -m "a b c" -- src/app.py',
+    'git commit -ma',                       # -m con mensaje "a": no es -a
+    'git commit --amend --no-edit',
+    'git restore --staged src/app.py',
+    'git checkout -b feature/x',
+    'git reset HEAD src/app.py',
+    'git reset --soft HEAD~1',
+    'git clean -n',
+    'echo "git reset --hard"',             # texto, no comando
+    'grep -r "git stash" docs/',
+    'ls -la',
+    '.jarvis/jv commit -m "fix: x"',
+]
+
+
+@pytest.mark.parametrize('cmd', PELIGROSOS)
+def test_git_destructivo_se_frena(cmd, tmp_path):
+    (tmp_path / 'src').mkdir()
+    (tmp_path / 'src' / 'app.py').write_text('x')
+    assert hook.motivo_git_destructivo(cmd, str(tmp_path)), cmd
+
+
+@pytest.mark.parametrize('cmd', SEGUROS)
+def test_git_normal_pasa(cmd, tmp_path):
+    (tmp_path / 'src').mkdir()
+    (tmp_path / 'src' / 'app.py').write_text('x')
+    assert hook.motivo_git_destructivo(cmd, str(tmp_path)) is None, cmd
+
+
+def test_checkout_de_un_archivo_existente_se_frena_y_de_una_rama_no(tmp_path):
+    (tmp_path / 'app.py').write_text('x')
+    assert hook.motivo_git_destructivo('git checkout app.py', str(tmp_path))
+    assert hook.motivo_git_destructivo('git checkout develop', str(tmp_path)) is None
+
+
+def test_el_motivo_dice_que_hacer():
+    m = hook.motivo_git_destructivo('git add -A', '/tmp')
+    assert 'jv commit' in m
+
+
+def test_hook_bash_deniega_sin_llamar_al_server(tmp_path):
+    payload = {'hook_event_name': 'PreToolUse', 'tool_name': 'Bash', 'cwd': str(tmp_path),
+               'tool_input': {'command': 'git reset --hard'}}
+    t0 = time.monotonic()
+    r = _correr(payload, {'JARVIS_TERMINAL_ID': '1', 'JARVIS_PORT': '59999', '_data': str(tmp_path)})
+    out = json.loads(r.stdout)
+    assert out['hookSpecificOutput']['permissionDecision'] == 'deny'
+    assert time.monotonic() - t0 < 5
+    assert not (tmp_path / hook.CAIDO_NOMBRE).exists(), 'no tenía que intentar hablar con el server'
+
+
+def test_hook_bash_normal_no_dice_nada(tmp_path):
+    payload = {'hook_event_name': 'PreToolUse', 'tool_name': 'Bash', 'cwd': str(tmp_path),
+               'tool_input': {'command': 'git status && npm test'}}
+    r = _correr(payload, {'JARVIS_TERMINAL_ID': '1', 'JARVIS_PORT': '59999', '_data': str(tmp_path)})
+    assert r.returncode == 0 and r.stdout == b''
+    assert not (tmp_path / hook.CAIDO_NOMBRE).exists()
+
+
+def test_guardia_apagable(tmp_path):
+    payload = {'hook_event_name': 'PreToolUse', 'tool_name': 'Bash', 'cwd': str(tmp_path),
+               'tool_input': {'command': 'git stash'}}
+    r = _correr(payload, {'JARVIS_TERMINAL_ID': '1', 'JARVIS_GIT_GUARD': 'off', '_data': str(tmp_path)})
+    assert r.stdout == b''

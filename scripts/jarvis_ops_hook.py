@@ -26,6 +26,8 @@
 # It installs itself (plotspace/core/hooks_cli.py, idempotent, at server boot).
 import json
 import os
+import re
+import shlex
 import sys
 
 TIMEOUT_POST_S = 1.0     # record: if it takes long, not worth waiting
@@ -283,6 +285,100 @@ def _denegar(motivo):
     sys.stdout.write("\n")
 
 
+# ─── Destructive-git guard (PreToolUse on Bash) ───────────────────────────────
+# In a tree several agents share, these commands sweep away or swallow
+# EVERYONE's uncommitted work. Checked locally (no server call, ~0 ms extra) and
+# denied with a reason that tells the agent what to do instead. The USER's own
+# shell is never affected (hooks only run on the agent's tool calls).
+# JARVIS_GIT_GUARD=off in the terminal's environment turns it off.
+
+_SEPARADORES = re.compile(r'&&|\|\||;|\||\n')
+_PREFIJOS = {'sudo', 'command', 'exec', 'time', 'nice', 'env', 'nohup'}
+_HAZ = "Commit only your own files: `.jarvis/jv commit -m \"...\"` or `git add <your files> && git commit -m \"...\"`."
+
+
+def _tokens(segmento):
+    try:
+        return shlex.split(segmento)
+    except ValueError:
+        return segmento.split()
+
+
+def _args_de_git(tokens):
+    """(subcommand, args, -C dir) if the segment is a git call; else None."""
+    i = 0
+    while i < len(tokens) and (tokens[i] in _PREFIJOS or re.match(r'^[A-Za-z_][A-Za-z0-9_]*=', tokens[i])):
+        i += 1
+    if i >= len(tokens) or os.path.basename(tokens[i]) != 'git':
+        return None
+    i += 1
+    dir_c = None
+    while i < len(tokens) and tokens[i].startswith('-'):
+        if tokens[i] in ('-C', '-c') and i + 1 < len(tokens):
+            if tokens[i] == '-C':
+                dir_c = tokens[i + 1]
+            i += 2
+            continue
+        i += 1
+    if i >= len(tokens):
+        return None
+    return tokens[i], tokens[i + 1:], dir_c
+
+
+def _flags_cortas(args):
+    """Letters of the short-flag clusters (-fd → f, d). Stops at `m` in a
+    cluster (what follows is -m's message: `-ma` is message "a", not -a)."""
+    letras = set()
+    for a in args:
+        if a == '--':
+            break
+        if a.startswith('-') and not a.startswith('--') and len(a) > 1:
+            for ch in a[1:]:
+                if ch == 'm':
+                    break
+                letras.add(ch)
+    return letras
+
+
+def motivo_git_destructivo(comando, cwd=None):
+    """Reason to deny `comando` (a Bash command line), or None if it's fine."""
+    for segmento in _SEPARADORES.split(comando or ''):
+        partes = _args_de_git(_tokens(segmento.strip()))
+        if not partes:
+            continue
+        sub, args, dir_c = partes
+        base = os.path.join(cwd or '.', dir_c) if dir_c else (cwd or '.')
+        largas = {a for a in args if a.startswith('--')}
+        cortas = _flags_cortas(args)
+        posicionales = [a for a in args if not a.startswith('-')]
+        if sub == 'stash' and not (posicionales and posicionales[0] in ('list', 'show')):
+            return ("Jarvis blocked `git stash`: in this tree several agents share, it takes away "
+                    "everyone's uncommitted work, not only yours. " + _HAZ)
+        if sub == 'reset' and largas & {'--hard', '--merge', '--keep'}:
+            return ("Jarvis blocked `git reset --hard`: it wipes every agent's uncommitted changes "
+                    "in this shared tree. To undo YOUR edits, revert your own files explicitly; "
+                    "if you really need a hard reset, ask the user.")
+        if sub == 'clean' and ('f' in cortas or '--force' in largas):
+            return ("Jarvis blocked `git clean -f`: it deletes untracked files of every agent in this "
+                    "shared tree. Delete only the files you created, by name.")
+        if sub in ('checkout', 'switch'):
+            if largas & {'--force', '--discard-changes'} or 'f' in cortas or '--' in args or '.' in posicionales \
+                    or any(os.path.exists(os.path.join(base, a)) for a in posicionales if sub == 'checkout'):
+                return ("Jarvis blocked this `git " + sub + "`: it overwrites uncommitted changes in this "
+                        "shared tree (maybe another agent's). To see a file as in HEAD use "
+                        "`git show HEAD:<path>`; to undo YOUR edit, edit the file back.")
+        if sub == 'restore' and not ({'--staged', '-S'} & set(args) and not ({'--worktree', '-W'} & set(args))):
+            return ("Jarvis blocked `git restore` on the working tree: it discards uncommitted changes, "
+                    "maybe another agent's in the same file. `git restore --staged <path>` (unstage) is fine.")
+        if sub == 'add' and (largas & {'--all', '--update'} or cortas & {'A', 'u'}
+                             or any(a in ('.', ':/', '*') for a in posicionales)):
+            return ("Jarvis blocked `git add -A` / `git add .`: it stages other agents' half-done work "
+                    "too. " + _HAZ)
+        if sub == 'commit' and ('--all' in largas or 'a' in cortas):
+            return ("Jarvis blocked `git commit -a`: it commits other agents' half-done work too. " + _HAZ)
+    return None
+
+
 def main():
     tid = os.environ.get("JARVIS_TERMINAL_ID")
     if not tid:
@@ -343,6 +439,15 @@ def main():
         texto = (r or {}).get("texto") if isinstance(r, dict) else None
         if texto:
             _contexto(str(texto), evento="UserPromptSubmit")
+        return
+
+    if evento == "PreToolUse" and tool_name == "Bash":
+        # Local check only: never a server round-trip on every shell command.
+        if (os.environ.get("JARVIS_GIT_GUARD") or "").lower() != "off":
+            cmd = (tool_input or {}).get("command") if isinstance(tool_input, dict) else None
+            motivo = motivo_git_destructivo(cmd or "", payload.get("cwd"))
+            if motivo:
+                _denegar(motivo)
         return
 
     if evento == "PreToolUse":

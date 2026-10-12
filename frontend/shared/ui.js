@@ -99,7 +99,8 @@
    * toast('Proyecto creado', 'success')
    * tipos: 'info' (default) | 'success' | 'error' | 'warning'
    */
-  function toast(mensaje, tipo = 'info', duracion = 4000) {
+  // opts.accion = { texto, alHacer } → un botón en el toast (p. ej. "Deshacer").
+  function toast(mensaje, tipo = 'info', duracion = 4000, opts = {}) {
     // Alias que usan varias secciones ('ok' / 'warn'): sin normalizar caían al
     // estilo neutro (sin borde de color y con el ícono de info).
     tipo = ({ ok: 'success', warn: 'warning' })[tipo] || tipo;
@@ -115,6 +116,19 @@
       el.classList.add('saliendo');
       setTimeout(() => el.remove(), 200);
     };
+    if (opts && opts.accion && typeof opts.accion.alHacer === 'function') {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ob-toast-accion';
+      b.textContent = opts.accion.texto || 'OK';
+      b.addEventListener('click', (e) => {
+        e.stopPropagation();
+        b.disabled = true;
+        cerrar();
+        try { opts.accion.alHacer(); } catch (_) {}
+      });
+      el.appendChild(b);
+    }
     el.addEventListener('click', cerrar);
     setTimeout(cerrar, duracion);
     return el;

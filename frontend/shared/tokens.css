@@ -656,6 +656,15 @@ html[data-theme="papel"], html[data-theme="alba"] {
   animation: ob-toast-bar var(--ob-toast-dur, 4000ms) linear forwards;
 }
 @keyframes ob-toast-bar { from { transform: scaleX(1) } to { transform: scaleX(0) } }
+/* Botón de acción del toast (p. ej. "Deshacer" tras Descartar en Review). */
+.ob-toast-accion {
+  margin-left: auto; align-self: center; flex-shrink: 0;
+  padding: 3px 10px; border-radius: var(--radius-btn, 7px);
+  border: 1px solid var(--ob-accent-24); background: var(--ob-accent-14);
+  color: var(--ob-fg-0); font: 600 var(--text-sm, 12px) var(--font-ui); cursor: pointer;
+}
+.ob-toast-accion:hover { background: var(--ob-accent-24); }
+.ob-toast-accion:disabled { opacity: .5; cursor: default; }
 
 /* ═══════════════════════════════════════════════════════════════
    CONFIRM (reemplaza confirm()) — ver shared/ui.js

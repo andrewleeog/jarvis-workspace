@@ -90,6 +90,9 @@ def test_matchers_correctos(tmp_path):
     for t in ('Edit', 'Write', 'NotebookEdit'):
         assert t in post, t
         assert t in pre, t
+    # PreToolUse también mira Bash: la guardia de git destructivo (stash,
+    # reset --hard, add -A…) que barre el trabajo de todos en el árbol compartido.
+    assert 'Bash' in pre and 'Bash' not in post
 
 
 def test_tiene_timeout_corto(tmp_path):

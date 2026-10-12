@@ -244,3 +244,54 @@ if __name__ == '__main__':
     test_pr_gh_falla_ok_false()
     test_estado_review_informa_base()
     print('OK')
+
+
+# ─── Descartar guarda una copia; Deshacer la recupera ─────────────────────────
+# Antes "Descartar" era irreversible y podía llevarse cambios a medio hacer de
+# otro agente en el mismo archivo. Ahora saca una foto del árbol sucio a
+# refs/jarvis/wip/<ts> ANTES de tocar nada, y /review/deshacer restaura desde ahí.
+
+def test_revert_guarda_respaldo_y_deshacer_lo_recupera():
+    client, pid, d, _ = _client_repo()
+    _escribir(d, 'a.txt', 'uno cambiado\n')
+    _escribir(d, 'nuevo.txt', 'recién creado\n')
+    _escribir(d, 'dir/f.txt', 'en carpeta nueva\n')
+    _escribir(d, 'b.txt', 'cambio de otro agente\n')        # no se descarta
+    r = client.post(f"/api/projects/{pid}/review/revert",
+                    json={'archivos': ['a.txt', 'nuevo.txt', 'dir/']})
+    data = r.json()
+    assert data['ok'] is True, data
+    assert data['respaldo'].startswith('refs/jarvis/wip/'), data
+    assert _leer(d, 'a.txt') == 'uno\n'
+    assert not os.path.exists(os.path.join(d, 'nuevo.txt'))
+    assert not os.path.exists(os.path.join(d, 'dir'))
+
+    r = client.post(f"/api/projects/{pid}/review/deshacer",
+                    json={'respaldo': data['respaldo'],
+                          'archivos': data['revertidos'] + data['borrados']})
+    d2 = r.json()
+    assert d2['ok'] is True, d2
+    assert _leer(d, 'a.txt') == 'uno cambiado\n'
+    assert _leer(d, 'nuevo.txt') == 'recién creado\n'
+    assert _leer(d, 'dir/f.txt') == 'en carpeta nueva\n'
+    assert _leer(d, 'b.txt') == 'cambio de otro agente\n'
+
+
+def test_deshacer_solo_acepta_respaldos_de_jarvis():
+    client, pid, d, _ = _client_repo()
+    for ref in ('HEAD', 'refs/heads/main', 'refs/jarvis/wip/../../heads/main', '--help'):
+        r = client.post(f"/api/projects/{pid}/review/deshacer",
+                        json={'respaldo': ref, 'archivos': ['a.txt']})
+        assert r.status_code == 400, (ref, r.text)
+
+
+def test_revert_sin_copia_no_descarta(monkeypatch):
+    """Si no se pudo guardar la copia, NO se descarta nada."""
+    client, pid, d, _ = _client_repo()
+    _escribir(d, 'a.txt', 'uno cambiado\n')
+    from plotspace.core import wip_snapshots
+    monkeypatch.setattr(wip_snapshots, 'snapshot_wip', lambda repo, **k: wip_snapshots._fallar('disco lleno'))
+    r = client.post(f"/api/projects/{pid}/review/revert", json={'archivos': ['a.txt']})
+    data = r.json()
+    assert data['ok'] is False and 'copia' in data['error'].lower(), data
+    assert _leer(d, 'a.txt') == 'uno cambiado\n'

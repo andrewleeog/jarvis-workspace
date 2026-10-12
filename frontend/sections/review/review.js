@@ -410,6 +410,23 @@
     }
   }
 
+  // Deshace un "Descartar": restaura los archivos desde la copia que guardó el server.
+  async function _deshacer(respaldo, archivos) {
+    try {
+      const r = await fetch(`/api/projects/${_projectId}/review/deshacer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ respaldo, archivos }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.ok === false) throw new Error(_errMsg(d.error ? d : Object.assign({ message: `HTTP ${r.status}` }, d)));
+      toast(_L(`Recuperados ${(d.restaurados || []).length} archivo(s)`, `Restored ${(d.restaurados || []).length} file(s)`), 'ok');
+      if (await _cargar()) _render();
+    } catch (e) {
+      toast(_errMsg(e), 'error');
+    }
+  }
+
   // ── Descartar (revert) ──────────────────────────────────────────────
   async function _revertir() {
     if (!_selected.size) return;
@@ -417,8 +434,8 @@
     // El <p> del confirm colapsa los saltos de línea: lista corrida con comas.
     const lista = paths.slice(0, 6).join(', ') + (paths.length > 6 ? ` (+${paths.length - 6})` : '');
     const ok = await confirmar(
-      _L(`Los cambios de estos archivos vuelven a como están en HEAD y los archivos nuevos se borran. No se puede deshacer. Archivos: ${lista}`,
-         `These files go back to how they are in HEAD and new files are deleted. This cannot be undone. Files: ${lista}`),
+      _L(`Los cambios de estos archivos vuelven a como están en HEAD y los archivos nuevos se borran. Antes se guarda una copia: vas a poder deshacerlo. Archivos: ${lista}`,
+         `These files go back to how they are in HEAD and new files are deleted. A copy is saved first, so you can undo it. Files: ${lista}`),
       { titulo: _L('¿Descartar cambios?', 'Discard changes?'),
         confirmText: _L('Descartar', 'Discard'), cancelText: _L('Cancelar', 'Cancel'), peligro: true });
     if (!ok) return;
@@ -432,7 +449,10 @@
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.ok === false) throw new Error(_errMsg(d.error ? d : Object.assign({ message: `HTTP ${r.status}` }, d)));
-      toast(_L(`Descartados ${paths.length} archivo(s)`, `Discarded ${paths.length} file(s)`), 'ok');
+      const respaldo = d.respaldo;
+      const tocados = [...(d.revertidos || []), ...(d.borrados || [])];
+      toast(_L(`Descartados ${paths.length} archivo(s)`, `Discarded ${paths.length} file(s)`), 'ok', 12000,
+        respaldo && tocados.length ? { accion: { texto: _L('Deshacer', 'Undo'), alHacer: () => _deshacer(respaldo, tocados) } } : {});
       _selected.clear();
       if (paths.includes(_activo)) _activo = null;
       if (await _cargar()) _render();
