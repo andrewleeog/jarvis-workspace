@@ -570,35 +570,79 @@ async def buscar_url_de_terminal(project_id: int, terminal_id: int) -> Optional[
 
 # ─── Helpers de la fuente 2 (puertos LISTEN) — syscalls, no event loop ──────────
 
-def _puertos_listen() -> set:
-    """Puertos TCP en LISTEN (IPv4+IPv6). Corre en CADA tick del poller, así que
-    tiene que ser barato.
+_RUTAS_PROC_TCP = ('/proc/net/tcp', '/proc/net/tcp6')
 
-    psutil primero: es el mismo código en Linux, macOS y Windows (donde
-    /proc no existe). El lector de /proc/net/tcp[6] queda de respaldo — es aún
-    más barato en Linux y cubre el caso de psutil ausente. La columna `st` ==
-    '0A' es LISTEN; la dirección local viene como HEX `IP:PUERTO`."""
+
+def _listen_proc() -> Optional[dict]:
+    """{puerto: inode} de los sockets en LISTEN según /proc/net/tcp[6] — ≈1 ms,
+    sin recorrer procesos. None si no hay /proc (macOS/Windows). La columna
+    `st` == '0A' es LISTEN; la dirección local viene como HEX `IP:PUERTO`; el
+    inode (col. 9) identifica AL listener: cambia si otro proceso toma el puerto."""
+    hubo, salida = False, {}
+    for path in _RUTAS_PROC_TCP:
+        try:
+            f = open(path)
+        except OSError:
+            continue
+        hubo = True
+        with f:
+            next(f, None)  # header
+            for linea in f:
+                campos = linea.split()
+                if len(campos) > 9 and campos[3] == '0A':
+                    try:
+                        salida.setdefault(int(campos[1].rsplit(':', 1)[1], 16), campos[9])
+                    except (ValueError, IndexError):
+                        pass
+    return salida if hubo else None
+
+
+def _listen_firmas() -> dict:
+    """{puerto: firma} de los TCP en LISTEN (IPv4+IPv6). Corre en CADA tick del
+    poller, así que tiene que ser barato. Linux: /proc/net/tcp (firma = inode del
+    socket). Sin /proc: psutil (firma = pid) — `net_connections` recorre los fds
+    de TODOS los procesos (~8 ms con 80 procesos, mucho más en una máquina de
+    desarrollo), por eso queda de respaldo."""
+    proc = _listen_proc()
+    if proc is not None:
+        return proc
     try:
         import psutil
-        return {c.laddr.port for c in psutil.net_connections(kind='inet')
-                if c.status == psutil.CONN_LISTEN and c.laddr}
+        salida = {}
+        for c in psutil.net_connections(kind='inet'):
+            if c.status == psutil.CONN_LISTEN and c.laddr:
+                salida.setdefault(c.laddr.port, c.pid)
+        return salida
     except Exception:
-        pass
-    ports = set()
-    for path in ('/proc/net/tcp', '/proc/net/tcp6'):
-        try:
-            with open(path) as f:
-                next(f, None)  # header
-                for linea in f:
-                    campos = linea.split()
-                    if len(campos) > 3 and campos[3] == '0A':
-                        try:
-                            ports.add(int(campos[1].rsplit(':', 1)[1], 16))
-                        except (ValueError, IndexError):
-                            pass
-        except Exception:
-            pass
-    return ports
+        return {}
+
+
+def _puertos_listen() -> set:
+    """Puertos TCP en LISTEN (ver `_listen_firmas`)."""
+    return set(_listen_firmas())
+
+
+# Puertos en LISTEN ya examinados que NO son de ningún proyecto (sshd, una base de
+# datos local, el callback de un login, un listener de otro usuario cuyo dueño no
+# se ve): antes eran "candidatos nuevos" en CADA tick y disparaban el escaneo de
+# procesos cada 2 s para siempre. Se re-examinan si el listener cambia (otra
+# firma) o pasados RECHAZO_TTL_S (un proyecto agregado después lo reclama).
+RECHAZO_TTL_S = 60.0
+_rechazados: dict = {}   # puerto → (firma, monotonic)
+
+
+def candidatos_nuevos(firmas: dict, conocidos: set, ahora: float) -> set:
+    """Puertos a examinar este tick: en LISTEN, no rastreados ni descartados, y
+    sin un rechazo vigente para ESE listener. Purga los rechazos vencidos."""
+    for port in list(_rechazados):
+        firma, ts = _rechazados[port]
+        if firmas.get(port, object()) != firma or ahora - ts > RECHAZO_TTL_S:
+            _rechazados.pop(port, None)
+    return {p for p in firmas if p != PUERTO_JARVIS} - conocidos - set(_rechazados)
+
+
+def rechazar(port: int, firma, ahora: float) -> None:
+    _rechazados[port] = (firma, ahora)
 
 
 def _ss_listeners() -> list:
@@ -812,7 +856,8 @@ async def _ciclo():
     # DB síncrona fuera del event loop (to_thread) — ver nota en agent_watch._ciclo.
     rows = await asyncio.to_thread(_rows_activas)
     # Puertos en LISTEN del SO (barato, sin pid) — fuente 2 + limpieza de descartadas.
-    listen_ports = await asyncio.to_thread(_puertos_listen)
+    firmas = await asyncio.to_thread(_listen_firmas)
+    listen_ports = set(firmas)
 
     # 1. Liveness POR URL: cada dev server rastreado se chequea. Si su puerto
     #    murió, se limpia y se avisa (la pestaña del preview queda — no la
@@ -930,9 +975,15 @@ async def _ciclo():
     #    ancestría de proceso (→ terminal) o por cwd. Solo trabajamos los puertos
     #    candidatos NUEVOS (no rastreados ni descartados), así el costo del
     #    escaneo de pid/ancestría es marginal (casi siempre 0 candidatos).
-    candidatos = {p for p in listen_ports if p != PUERTO_JARVIS} - _puertos_ya_conocidos()
+    ahora = time.monotonic()
+    candidatos = candidatos_nuevos(firmas, _puertos_ya_conocidos(), ahora)
     if not candidatos:
         return
+    # Lo que este tick no termine anunciando queda RECHAZADO para ese listener
+    # (ver _rechazados): sin esto los mismos puertos ajenos re-disparaban el
+    # escaneo de procesos cada 2 s.
+    for port in candidatos:
+        rechazar(port, firmas.get(port), ahora)
     proyectos = await asyncio.to_thread(_proyectos_rows)
     ruta_de = {p['id']: p.get('ruta') for p in proyectos}
     listeners = await asyncio.to_thread(_ss_listeners)
@@ -958,6 +1009,7 @@ async def _ciclo():
             continue
         if not await _puerto_vivo(url):
             continue
+        _rechazados.pop(port, None)          # anunciado: ahora es "conocido"
         _detectados.setdefault(pid, {})[url] = {
             'terminal_id': info['terminal_id'], 'terminal_nombre': info['terminal_nombre'],
         }

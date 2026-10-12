@@ -254,9 +254,38 @@ def test_capturar_devuelve_none_si_falla(monkeypatch):
 def test_titulos_vivos_mapea_sesion_a_titulo(monkeypatch):
     # El título del pane es lo que la card muestra como "qué está haciendo el
     # agente". Un título con tabs adentro no debe partir el parseo.
-    _fake(monkeypatch, default=(0, 'jarvis_1\tescribiendo tests\njarvis_2\tidle\nbasura\n'))
+    _fake(monkeypatch, default=(0, 'jarvis_1\t11\t100\tclaude\tescribiendo\ttests\n'
+                                    'jarvis_2\t12\t\tbash\tidle\nbasura\n'))
     titulos = TmuxBackend().titulos_vivos()
-    assert titulos == {'jarvis_1': 'escribiendo tests', 'jarvis_2': 'idle'}
+    assert titulos == {'jarvis_1': 'escribiendo\ttests', 'jarvis_2': 'idle'}
+
+
+def test_una_foto_de_panes_da_titulo_comando_pid_y_actividad(monkeypatch):
+    # UN solo `list-panes -a` para todo: antes títulos y comandos eran llamadas
+    # aparte y el pid del pane no se sabía (la atribución de dev servers por
+    # ancestría nunca encontraba la terminal).
+    f = _fake(monkeypatch, default=(0, 'jarvis_1\t11\t1700000000\tclaude\tTrabajando\n'
+                                        'jarvis_2\t12\t1700000005\tbash\tvm\n'))
+    b = TmuxBackend()
+    assert b.comandos_vivos() == {'jarvis_1': 'claude', 'jarvis_2': 'bash'}
+    assert b.actividad_panes() == {'jarvis_1': 1700000000, 'jarvis_2': 1700000005}
+    assert b.pid_de_terminal(2) == 12
+    assert b.pid_de_terminal(9) is None
+    assert all(argv[:2] == ['tmux', 'list-panes'] for argv, _ in f.llamadas)
+
+
+def test_la_foto_cacheada_ahorra_forks_y_tmux_caido_es_none(monkeypatch):
+    f = _fake(monkeypatch, default=(0, 'jarvis_1\t11\t1700000000\tbash\tvm\n'))
+    b = TmuxBackend()
+    b.actividad_panes(max_edad=5.0)
+    b.actividad_panes(max_edad=5.0)
+    b.pid_de_terminal(1)                 # max_edad propia (2 s): reusa la misma foto
+    assert len(f.llamadas) == 1
+    b.titulos_vivos()                    # las lecturas directas van siempre frescas
+    assert len(f.llamadas) == 2
+    _fake(monkeypatch, default=(1, ''))
+    b2 = TmuxBackend()
+    assert b2.comandos_vivos() is None and b2.actividad_panes() is None and b2.titulos_vivos() == {}
 
 
 def test_listar_sesiones(monkeypatch):
