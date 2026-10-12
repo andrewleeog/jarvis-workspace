@@ -15,7 +15,7 @@ D
     QA handle: `window.terminalesXterm` (Map terminalId → {term, ws, ...}).
   - `terminal-layout.js` — **auto-tile** engine. **UMD module**: pure DOM-free
     logic (Node-testable) + DOM engine that self-installs in the browser.
-    Mirrors the `window.JarvisEditor` pattern → exposes `window.TerminalLayout`.
+    Exposes `window.TerminalLayout`.
     - Model: **fraction grid** `{ rows: [ { hFrac, cells: [ {id, wFrac} ] } ] }`
       that ALWAYS fills the container. On add/remove it re-tiles in a balanced
       grid (`cols=ceil(√N)`, last row stretches; max 9). Resize = panel divider
@@ -57,7 +57,7 @@ D
     Handle de QA: `window.terminalesXterm` (Map terminalId → {term, ws, ...}).
   - `terminal-layout.js` — motor de **mosaico auto-tile**. **Módulo UMD**: lógica
     pura sin DOM (testeable en Node) + motor DOM que se instala solo en el navegador.
-    Espeja el patrón `window.JarvisEditor` → expone `window.TerminalLayout`.
+    Expone `window.TerminalLayout`.
     - Modelo: **grilla por fracciones** `{ rows: [ { hFrac, cells: [ {id, wFrac} ] } ] }`
       que SIEMPRE llena el contenedor. Al agregar/quitar re-tilea en grilla
       balanceada (`cols=ceil(√N)`, última fila estira; máx 9). Resize = divisor de

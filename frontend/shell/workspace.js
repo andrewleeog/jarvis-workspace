@@ -57,6 +57,11 @@ document.querySelectorAll('.tea-card').forEach((el) => {
 // archivo del árbol) → acá: abierto = cerrar (toggle de siempre); con pestañas
 // previas = reabrirlas; sin nada = abrir el primer archivo con sentido del
 // proyecto (README/CLAUDE/package.json…, si no el primero del árbol).
+// «Ir a archivo» (Ctrl+Shift+P): buscar en el árbol del proyecto y abrir en el editor.
+function _abrirIrAArchivo() {
+  window.JarvisAbrirRapido?.abrir?.(projectId, (path) => _sbAbrirArchivo(projectId, path));
+}
+
 async function _abrirEditorWorkspace() {
   const ed = window.JarvisSlideEditor;
   if (!ed) return;
@@ -184,17 +189,8 @@ const _MIC_PRECALENTADO_MS = 15_000;
 let eventsWs      = null;
 let ttsActivo     = false;
 
-// ─── Estado de los paneles: ahora vive en window.JarvisDock ──────────
-// editor.js lee window.editorVisible como getter en vivo (editor.js:2282).
-// Lo derivamos del dock: la pestaña 'editor' activa Y el dock abierto.
-Object.defineProperty(window, 'editorVisible', {
-  get: () => window.JarvisDock?.activeTab?.() === 'editor',
-  configurable: true,
-});
-
-// ─── Estado del editor Monaco ───────────────────────────────────────
-// MOVIDO a frontend/js/editor.js (window.JarvisEditor). workspace.js ya no
-// posee monacoEditor/openTabs/activeTab/etc. Se accede vía la superficie pública.
+// (El estado de los paneles vive en window.JarvisDock. El editor de código es el
+// deslizante — window.JarvisSlideEditor; el Monaco del dock se retiró.)
 
 const chatSesiones = {};
 
@@ -1045,7 +1041,6 @@ async function inicializar() {
       onTabShown: (tab) => _onDockTabShown(tab),
       onResized: () => {
         if (typeof terminales !== 'undefined') terminales.forEach((_, id) => refitTerminal?.(id));
-        if (window.JarvisDock?.activeTab?.() === 'editor') window.JarvisEditor?.relayout?.();
       },
     });
     window.JarvisDock?.setProject(projectId);
@@ -1180,11 +1175,6 @@ async function inicializar() {
     // cerrarlos). Se nutre de GET /api/orchestrator/preview/{id}/servers.
     window.JarvisDevServers?.init();
     window.JarvisDevServers?.cargar?.(projectId);
-
-    // Inicializar el editor (window.JarvisEditor) con el proyecto actual.
-    // editor.js es un script clásico cargado después; init() le pasa el id y
-    // arranca el file tree + Monaco si el panel editor está visible.
-    window.JarvisEditor?.init(projectId);
 
     // Bridge: OrchestratorPanel llama esto para buscar archivos del proyecto por @query
     window._orchGetFiles = async (query) => {
@@ -2274,13 +2264,27 @@ function _sbSelArchivo(el) {
   elSidebarNav?.querySelectorAll('.sb-ffile.sel').forEach(x => x.classList.remove('sel'));
   el.classList.add('sel');
 }
-async function _sbAbrirArchivo(projId, path) {
+async function _sbAbrirArchivo(projId, path, opts) {
   try {
     if (String(projId) !== String(projectId)) await cambiarProyecto(projId);
     // Editor deslizante (reemplaza al Monaco del dock): sale por la izquierda.
-    window.JarvisSlideEditor?.abrirArchivo?.(projId, path);
+    window.JarvisSlideEditor?.abrirArchivo?.(projId, path, opts);
   } catch {}
 }
+
+// Abrir `ruta` (relativa al proyecto, o absoluta dentro de él) en el editor, en
+// `linea`:`col`. La usan los links `archivo:línea` de las terminales, «Abrir» de
+// Review y de Extensiones — antes llamaban al Monaco del dock, que ya no se veía.
+window.JarvisAbrirArchivo = (ruta, linea, col) => {
+  const raiz = _sbProyectos.find(p => String(p.id) === String(projectId))?.ruta || '';
+  const rel = window.JarvisAbrirRapido?.normalizarRuta?.(ruta, raiz);
+  if (!rel) {
+    toast(_sbT('Ese archivo está fuera del proyecto'), 'info');
+    return false;
+  }
+  _sbAbrirArchivo(projectId, rel, linea ? { linea, col } : undefined);
+  return true;
+};
 
 function actualizarSidebarActivo() {
   document.querySelectorAll('.sb-row').forEach(el => {
@@ -2531,19 +2535,12 @@ window.addEventListener('jarvis:lang', () => renderSidebar());
 document.addEventListener('keydown', (e) => {
   const mod = e.metaKey || e.ctrlKey;
   if (!mod) return;
-  // ⌘P: palette de archivo SOLO si el editor está a la vista; si no, toggle del dock.
-  // ⌘⇧P: palette de comandos (siempre, si el editor ya cargó).
+  // ⌘P: toggle del dock. ⌘⇧P: «Ir a archivo» → lo abre en el editor deslizante.
   if ((e.key === 'p' || e.key === 'P') && !e.altKey) {
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (e.shiftKey && window.JarvisEditor?.openPalette) {
-      window.JarvisEditor.openPalette('comando');
-    } else if (window.JarvisDock?.isOpen() && window.JarvisDock.activeTab() === 'editor'
-               && window.JarvisEditor?.openPalette) {
-      window.JarvisEditor.openPalette('archivo');
-    } else {
-      window.JarvisDock?.toggle();
-    }
+    if (e.shiftKey) _abrirIrAArchivo();
+    else window.JarvisDock?.toggle();
     return;
   }
   // Atajos del Panel Único (contrato). No interferir si se tipea en un campo.
@@ -2618,12 +2615,8 @@ async function cambiarProyecto(nuevoId) {
   _cambioEnCurso = true;
   try {
 
-  // 0. Avisar si hay tabs sin guardar (spec §7). Si el usuario cancela, abortar.
-  // `?.()` devuelve undefined si el editor no está cargado → undefined !== false → se continúa.
-  const _descartarOk = await window.JarvisEditor?.confirmarDescarteSiSucio?.();
-  if (_descartarOk === false) { _cambioPendiente = null; _sbMarcarActivo(projectId); return; }
-  // El editor deslizante también guarda buffers: sin preguntar, el cambio de
-  // proyecto los tiraba en silencio.
+  // 0. Avisar si hay archivos sin guardar en el editor: sin preguntar, el cambio
+  // de proyecto los tiraba en silencio. Si el usuario cancela, abortar.
   if ((await window.JarvisSlideEditor?.confirmarDescarteSiSucio?.()) === false) {
     _cambioPendiente = null; _sbMarcarActivo(projectId); return;
   }
@@ -2649,9 +2642,6 @@ async function cambiarProyecto(nuevoId) {
   projectId = String(nuevoId);
   history.pushState({ projectId }, '', `/workspace?id=${projectId}`);
 
-  // Notificar al editor del cambio de proyecto (re-apunta su _projectId y,
-  // si el panel está visible, refresca el árbol del nuevo proyecto).
-  window.JarvisEditor?.onProjectChanged(projectId);
   window.JarvisSlideEditor?.onProjectChanged?.(projectId);
   window.TerminalLayout?.onProjectChanged(projectId);
   window.JarvisTasks?.onProjectChanged(projectId);
@@ -2708,8 +2698,7 @@ window.addEventListener('popstate', async e => {
   const id = new URLSearchParams(location.search).get('id');
   if (id && id !== String(projectId)) {
     // `?.()` → undefined si el editor no está cargado; undefined !== false → se continúa.
-    const _popDescartarOk = await window.JarvisEditor?.confirmarDescarteSiSucio?.() !== false
-      && await window.JarvisSlideEditor?.confirmarDescarteSiSucio?.() !== false;
+    const _popDescartarOk = await window.JarvisSlideEditor?.confirmarDescarteSiSucio?.() !== false;
     if (_popDescartarOk === false) {
       // El usuario canceló: re-empujar la URL del proyecto actual para no dejar
       // la barra de direcciones desincronizada del estado real.
@@ -2720,7 +2709,6 @@ window.addEventListener('popstate', async e => {
     // estaciona sus teléfonos/cards vivos (pool) y volver es instantáneo.
     desconectarTodasLasTerminales();
     projectId = id;
-    window.JarvisEditor?.onProjectChanged(projectId);
     window.JarvisSlideEditor?.onProjectChanged?.(projectId);
     window.TerminalLayout?.onProjectChanged(projectId);
     window.JarvisTasks?.onProjectChanged(projectId);
@@ -4815,8 +4803,6 @@ document.addEventListener('keydown', (e) => {
 function esc(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
-// Exponer para editor.js (window.JarvisEditor lo reusa sin duplicar)
-window.esc = esc;
 
 // ═══════════════════════════════════════════════════════════════════
 //  PANEL ÚNICO (DOCK) — reemplaza los paneles toggleables viejos
@@ -4825,16 +4811,7 @@ window.esc = esc;
 // onTabShown: lo invoca JarvisDock cuando una pestaña se vuelve visible.
 // Hace el init/refit lazy de cada sección.
 function _onDockTabShown(tab) {
-  // Al cambiar de pestaña, el editor deja de pollear si ya no es la activa.
-  if (tab !== 'editor') window.JarvisEditor?.detenerPolling?.();
   switch (tab) {
-    case 'editor':
-      // Arranca el editor si es la primera vez (lee window.editorVisible=true ahora).
-      window.JarvisEditor?.refrescarArbol();
-      window.JarvisEditor?.iniciarPolling();
-      window.JarvisEditor?.cargarMonaco();
-      window.JarvisEditor?.relayout?.();
-      break;
     case 'jarvis': {
       // Mostrar el chat NO debe arrastrarlo al fondo si el usuario venía leyendo
       // más arriba (bug: al volver de "ver los agentes runeando" / cambiar de
@@ -5528,19 +5505,13 @@ function instalarPushToTalk() { instalarControles(); }
 // ignorarla y no mandarla al PTY).
 window._jarvisHandleControlKey = function (e) {
   if (_capturando) return false;
-  // Atajos del editor cuando una terminal tiene foco (xterm captura el teclado):
-  // delegar en JarvisEditor. Devolver true → xterm no manda la tecla al PTY.
-  if (e.type === 'keydown' && (e.metaKey || e.ctrlKey) && e.shiftKey &&
-      (e.code === 'KeyF' || e.key === 'F' || e.key === 'f')) {
-    if (window.JarvisEditor) { window.JarvisEditor.openSearch(); return true; }
-  }
-  // ⌘P / Ctrl+P dentro de una terminal: abrir command palette en vez de mandar al PTY.
-  if (e.type === 'keydown' && (e.metaKey || e.ctrlKey) && !e.altKey &&
+  // ⌘⇧P dentro de una terminal: «Ir a archivo» (como fuera de ella). Devolver
+  // true → xterm no manda la tecla al PTY. ⌘P a secas sigue llegando al shell
+  // (en bash/zsh es «comando anterior»).
+  if (e.type === 'keydown' && (e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey &&
       (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) {
-    if (window.JarvisEditor?.openPalette) {
-      window.JarvisEditor.openPalette(e.shiftKey ? 'comando' : 'archivo');
-      return true;   // consumir: xterm no manda la tecla al PTY
-    }
+    _abrirIrAArchivo();
+    return true;
   }
   let matched = null;
   for (const c of CONTROLS) {

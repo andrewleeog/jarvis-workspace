@@ -94,7 +94,6 @@
           for (const id of vivas.keys()) { try { global.refitTerminal(id, true); } catch (_) {} }
         }
       } catch (_) {}
-      try { global.JarvisEditor?.relayout?.(); } catch (_) {}
     }
 
     function _acomodar(n) {

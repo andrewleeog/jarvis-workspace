@@ -598,7 +598,7 @@ SECURITY_HEADERS = {
 # cambió). Así un F5 SIEMPRE trae el HTML actual y, con él, los scripts actuales.
 # Solo el DOCUMENTO lleva no-cache: los .js/.css versionados con ?v= siguen
 # cacheándose fuerte (la URL cambia cuando cambia el contenido).
-_HTML_PAGES = {'/', '/workspace', '/editor'}
+_HTML_PAGES = {'/', '/workspace'}
 
 
 # Tope de tamaño de request (256 MB). Cubre uploads/zip; el editor y la API real
@@ -753,9 +753,11 @@ async def pagina_workspace():
 
 
 @app.get("/editor")
-async def pagina_editor():
-    # Editor standalone (pestaña de navegador).
-    return FileResponse(os.path.join(FRONTEND, 'shell', 'editor-standalone.html'))
+async def pagina_editor(project: str = ''):
+    # El editor standalone (Monaco) se retiró: el editor es el deslizante del
+    # workspace. Un link/marcador viejo a /editor?project=N cae en ese proyecto.
+    destino = f'/workspace?id={project}' if project.isdigit() else '/workspace'
+    return RedirectResponse(destino, status_code=307)
 
 
 @app.get("/api/health")
