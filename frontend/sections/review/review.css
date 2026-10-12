@@ -167,6 +167,14 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   direction: rtl; text-align: left;
 }
+/* Otro agente también escribió en este archivo: el commit por agente lo sube
+   por hunk (solo lo de este agente); el chip avisa que el archivo es compartido. */
+.rv-tambien {
+  flex-shrink: 1; min-width: 0; max-width: 40%;
+  font: 500 var(--text-2xs) var(--font-mono);
+  color: var(--ob-fg-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .rv-stat {
   font: 500 var(--text-2xs) var(--font-mono); flex-shrink: 0;
   min-width: 44px; text-align: right; font-variant-numeric: tabular-nums;

@@ -207,18 +207,125 @@ def review_por_agente(project_id: int):
     for f in archivos_cambiados:
         f['clase'] = politica_commit.clasificar(f['path'])
     duenos = _duenos_para(project_id)
-    return atribuir_cambios(archivos_cambiados, duenos)
+    res = atribuir_cambios(archivos_cambiados, duenos)
+    # Archivos donde OTRO agente también escribió: la UI lo marca y el commit
+    # por agente los sube por hunk (solo lo del dueño del grupo).
+    try:
+        frags = _fragmentos_por_archivo(project_id, [f['path'] for f in archivos_cambiados])
+        nombres = {d['terminal_id']: d['nombre'] for d in duenos}
+        def _otros(path, dueno):
+            tids = [t for t in frags.get(_norm_path(path), {}) if t != dueno]
+            return [nombres.get(t) or _nombre_agente(project_id, t) or f'terminal {t}' for t in tids]
+        for g in res['agentes']:
+            for f in g['archivos']:
+                f['tambien'] = _otros(f['path'], g['terminal_id'])
+        for f in res['sin_atribuir']:
+            f['tambien'] = _otros(f['path'], None)
+    except Exception:
+        pass
+    return res
+
+
+# ─── Commit (por agente: solo SUS hunks, bajo el lock de commit_propio) ────────
+
+_SCRIPTS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'scripts')
+
+
+def _scripts():
+    """hunks_propios / commit_propio viven en scripts/ (stdlib pura, los usan los
+    agentes con `jv commit`): la MISMA lógica de stage por hunk y el MISMO lock."""
+    import sys
+    if _SCRIPTS not in sys.path:
+        sys.path.insert(0, _SCRIPTS)
+    import commit_propio
+    import hunks_propios
+    return commit_propio, hunks_propios
+
+
+def _fragmentos_por_archivo(pid, rels) -> dict:
+    """{path: {tid: [texto escrito/reemplazado, ...]}} desde la provenance."""
+    from plotspace.core import provenance
+    quiero = {_norm_path(r) for r in rels}
+    out: dict = {}
+    for e in provenance.ediciones(pid=pid):
+        p = _norm_path(e['path'])
+        if p not in quiero:
+            continue
+        frs = out.setdefault(p, {}).setdefault(e['tid'], [])
+        for t in (e['despues'], e['antes']):
+            if t and t not in frs:
+                frs.append(t)
+    return out
+
+
+def _nombre_agente(pid, tid) -> str:
+    from plotspace.core import provenance
+    for e in reversed(provenance.ediciones(pid=pid, tid=tid)):
+        if e.get('nombre'):
+            return e['nombre']
+    try:
+        conn = get_db()
+        try:
+            row = conn.execute('SELECT nombre FROM terminals WHERE id = ?', (tid,)).fetchone()
+        finally:
+            conn.close()
+        if row and row['nombre']:
+            return row['nombre']
+    except Exception:
+        pass
+    return ''
+
+
+def _dir_git(cwd) -> str:
+    """Carpeta .git COMÚN del repo (en un worktree `.git` es un archivo): ahí vive
+    el lock compartido con `commit_propio`, que en un repo normal es <raíz>/.git."""
+    rc, out = _git(cwd, 'rev-parse', '--git-common-dir')
+    d = out.strip() if rc == 0 else ''
+    return os.path.normpath(os.path.join(cwd, d)) if d else os.path.join(cwd, '.git')
+
+
+def _stage_hunks(cwd, archivo, mios, ajenos, hp):
+    """Aplica al índice SOLO los hunks de `archivo` atribuibles a `mios`.
+    (ok, motivo_si_no)."""
+    rc, diff = _git(cwd, 'diff', '-U0', '--no-color', '--', archivo)
+    if rc != 0 or not diff.strip():
+        return False, 'sin cambios'
+    parche = hp.filtrar_parche(diff, mios, ajenos)
+    if not parche:
+        return False, 'no hay cambios atribuibles a este agente (o están pegados a los de otro)'
+    import tempfile
+    fd, tmp = tempfile.mkstemp(suffix='.patch', dir=_dir_git(cwd))
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(parche)
+        rc, out, err = _git_full(cwd, 'apply', '--cached', '--unidiff-zero', tmp)
+        return (True, '') if rc == 0 else (False, _error_git(out, err, 'git apply falló'))
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 @router.post("/projects/{project_id}/review/commit")
 def commit_por_agente(project_id: int, body: dict = Body(default=None)):
-    """Commitea SOLO los archivos indicados (git add explícito + commit acotado
-    a esos paths). Respeta la regla del árbol compartido: NUNCA `git add -A`, así
-    no se barre el trabajo a medio hacer de otros agentes. Los hooks corren (sin
-    --no-verify): el candado de propiedad/secretos sigue activo."""
+    """Commitea SOLO los archivos indicados. Nunca `git add -A`. Los hooks corren
+    (sin --no-verify): el candado de propiedad/secretos sigue activo.
+
+    Con `agente` (terminal_id: el grupo de Review de donde salió la selección),
+    un archivo donde OTRO agente también tiene cambios sin commitear se stagea
+    por HUNK con la provenance (lo que escribió cada uno) — antes viajaba entero
+    con el trabajo a medio hacer del otro adentro — y el commit lleva el trailer
+    `Jarvis-Agent:`. Todo bajo el lock de `commit_propio` (.git/jarvis-commit.lock)
+    para no cruzarse con el `jv commit` de un agente."""
     body = body or {}
     archivos = body.get('archivos') or []
     mensaje = str(body.get('mensaje') or '').strip()
+    agente = body.get('agente')
+    try:
+        agente = int(agente) if agente not in (None, '') else None
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="agente inválido")
 
     cwd = _ruta_proyecto(project_id)
 
@@ -239,20 +346,76 @@ def commit_por_agente(project_id: int, body: dict = Body(default=None)):
                                 detail=f"Ruta fuera del proyecto: {raw}")
         rels.append(rel)
 
-    # git add explícito de ESOS archivos.
-    rc, out, err = _git_full(cwd, 'add', '--', *rels)
-    if rc != 0:
-        return {"ok": False, "error": _error_git(out, err, "git add falló")}
+    cp, hp = _scripts()
+    trailer = cp.trailer_atribucion(_nombre_agente(project_id, agente), agente) if agente is not None else None
+    frags = _fragmentos_por_archivo(project_id, rels) if agente is not None else {}
+    nuevos = _untracked(cwd)
+    por_hunk = [r for r in rels
+                if r not in nuevos and any(t != agente for t in frags.get(_norm_path(r), {}))]
+    por_archivo = [r for r in rels if r not in por_hunk]
 
-    # Commit acotado a esos paths (no arrastra otra cosa staged por otro agente).
-    # Timeout largo: los hooks pre-commit pueden tardar bastante más de 15s.
-    rc, out, err = _git_full(cwd, 'commit', '-m', mensaje, '--', *rels,
-                             timeout=GIT_COMMIT_TIMEOUT)
-    if rc != 0:
-        return {"ok": False, "error": _error_git(out, err, "git commit falló")}
+    lock_path = os.path.join(_dir_git(cwd), 'jarvis-commit.lock')
+    with open(lock_path, 'w') as lock:
+        try:
+            cp._tomar_lock(lock)
+        except RuntimeError as e:
+            return {"ok": False, "error": str(e)}
+        try:
+            if not por_hunk:
+                # Camino de siempre: archivos enteros y commit acotado a esos paths
+                # (`commit -- paths` no arrastra lo que otro dejó staged).
+                rc, out, err = _git_full(cwd, 'add', '--', *rels)
+                if rc != 0:
+                    return {"ok": False, "error": _error_git(out, err, "git add falló")}
+                args = ['commit', '-m', mensaje] + (['-m', trailer] if trailer else []) + ['--', *rels]
+                rc, out, err = _git_full(cwd, *args, timeout=GIT_COMMIT_TIMEOUT)
+                if rc != 0:
+                    return {"ok": False, "error": _error_git(out, err, "git commit falló")}
+                _, hash_ = _git(cwd, 'rev-parse', '--short', 'HEAD')
+                return {"ok": True, "commit": hash_.strip(), "por_hunk": [], "omitidos": []}
 
-    _, hash_ = _git(cwd, 'rev-parse', '--short', 'HEAD')
-    return {"ok": True, "commit": hash_.strip()}
+            # Por hunk se commitea el ÍNDICE: lo que otro dejó staged viajaría →
+            # se saca primero (queda en su árbol, como hace commit_propio).
+            _, ya = _git(cwd, 'diff', '--cached', '--name-only', '-z')
+            ajeno_staged = [f for f in ya.split('\0') if f and f not in por_archivo]
+            if ajeno_staged:
+                _git(cwd, 'reset', '-q', '--', *ajeno_staged)
+            staged, omitidos = [], []
+            for f in por_archivo:
+                rc, out, err = _git_full(cwd, 'add', '--', f)
+                if rc == 0:
+                    staged.append(f)
+                else:
+                    omitidos.append({'path': f, 'motivo': _error_git(out, err, 'git add falló')})
+            subidos_por_hunk = []
+            for f in por_hunk:
+                del_archivo = frags.get(_norm_path(f), {})
+                mios = del_archivo.get(agente, [])
+                ajenos = [t for tid, ts in del_archivo.items() if tid != agente for t in ts]
+                ok, motivo = _stage_hunks(cwd, f, mios, ajenos, hp)
+                if ok:
+                    staged.append(f)
+                    subidos_por_hunk.append(f)
+                else:
+                    omitidos.append({'path': f, 'motivo': motivo})
+            if not staged:
+                return {"ok": False, "omitidos": omitidos,
+                        "error": "Nada de este agente para commitear: "
+                                 + '; '.join(f"{o['path']} ({o['motivo']})" for o in omitidos)}
+            args = ['commit', '-m', mensaje] + (['-m', trailer] if trailer else [])
+            rc, out, err = _git_full(cwd, *args, timeout=GIT_COMMIT_TIMEOUT)
+            if rc != 0:
+                _git(cwd, 'reset', '-q', '--', *staged)    # no dejar el índice a medias
+                return {"ok": False, "error": _error_git(out, err, "git commit falló")}
+            _, hash_ = _git(cwd, 'rev-parse', '--short', 'HEAD')
+            return {"ok": True, "commit": hash_.strip(), "por_hunk": subidos_por_hunk,
+                    "omitidos": omitidos}
+        finally:
+            try:
+                import fcntl
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            except Exception:
+                pass
 
 
 GH_TIMEOUT = 60   # `gh pr create` habla con la API de GitHub
