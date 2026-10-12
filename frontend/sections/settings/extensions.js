@@ -854,12 +854,10 @@
   }
 
   function _abrirEnEditor(path) {
-    const ed = global.JarvisEditor;
-    if (!ed?.abrirArchivo) { global.toast?.(_t('El editor no está disponible'), 'warning'); return; }
+    if (!global.JarvisAbrirArchivo) { global.toast?.(_t('El editor no está disponible'), 'warning'); return; }
     _cerrarDrawer(true);
     global.JarvisSettings?.close?.();
-    try { global.JarvisDock?.setTab?.('editor'); } catch {}
-    ed.abrirArchivo(path);
+    global.JarvisAbrirArchivo(path);
   }
 
   // Marketplace → instalar: el comando + los tres pasos.

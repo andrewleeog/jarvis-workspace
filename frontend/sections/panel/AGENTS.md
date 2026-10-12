@@ -8,8 +8,6 @@ The single right dock (`window.JarvisDock`) and the side project strip.
     (+ `revealTab` — programmatic jump that opens a tab WITHOUT persisting base
     or creating per-agent override; used by card-maximize to show the agent's
     localhost).
-    The `#jw-dock-external` button (visible only on the editor tab) opens the
-    standalone editor in a new tab (`GET /editor?project=N`).
   - `panel.css` — dock styles.
   - `strip.js` — project strip logic (`#jw-strip`, 185px, "WORKSPACES").
     Handles: active project selection, inline rename (double-click), project `⋯`

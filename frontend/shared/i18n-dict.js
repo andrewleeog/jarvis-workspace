@@ -2399,5 +2399,9 @@
     "La cuenta de Claude llegó a su límite": "The Claude account hit its limit",
     "Abrir Cuentas": "Open Accounts",
     "Falta el CLI de Claude": "The Claude CLI is missing",
+    // ── «Ir a archivo» (shared/abrir-rapido.js) + abrir archivo:línea ──
+    "Ir a archivo": "Go to file",
+    "Ir a archivo…": "Go to file…",
+    "Ese archivo está fuera del proyecto": "That file is outside the project",
   });
 })();

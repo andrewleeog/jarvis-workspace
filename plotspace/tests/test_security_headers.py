@@ -67,7 +67,7 @@ def test_headers_en_static():
 def test_html_pages_son_no_cache():
     client = _client()
     cookie = {}
-    for ruta in ('/', '/workspace', '/editor'):
+    for ruta in ('/', '/workspace'):
         r = client.get(ruta, headers=cookie)
         assert r.status_code == 200, f'{ruta} → {r.status_code}'
         assert r.headers.get('cache-control') == 'no-cache', \

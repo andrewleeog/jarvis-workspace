@@ -234,7 +234,7 @@
     cont.querySelectorAll('.rv-open').forEach(btn =>
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        window.JarvisEditor?.abrirArchivoEnLinea?.(btn.dataset.open, 1);
+        window.JarvisAbrirArchivo?.(btn.dataset.open, 1);
       }));
     cont.querySelectorAll('.rv-gtoggle').forEach(btn =>
       btn.addEventListener('click', () => { _genAbierto = !_genAbierto; _renderLista(); }));
@@ -263,14 +263,11 @@
   }
 
   // ── Diff ────────────────────────────────────────────────────────────
+  // Monaco (shared/monaco.js): una sola carga; el tema 'jarvis-dark' sale de la
+  // apariencia actual cada vez que se abre un diff.
   async function _monaco() {
-    if (window.monaco) return window.monaco;
-    try { await window.JarvisEditor?.cargarMonaco?.(); } catch (_) {}
-    // El loader es asíncrono; esperamos a que el global esté disponible.
-    for (let i = 0; i < 20 && !window.monaco; i++) {
-      await new Promise((r) => setTimeout(r, 150));
-    }
-    return window.monaco || null;
+    try { return (await window.JarvisMonaco?.cargar?.()) || window.monaco || null; }
+    catch (_) { return window.monaco || null; }
   }
 
   function _diffsMap() {

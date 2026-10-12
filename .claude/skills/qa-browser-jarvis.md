@@ -57,9 +57,10 @@ And `node --check <file>` for every JS touched.
 - Top bar: `#jw-bar` · dock toggle `#jw-dock-toggle` · gear `#jw-gear`
   - Center: breadcrumb `<nav class="gh-crumb-center">` "Jarvis Workspace › project"
   - **`#btn-new-terminal` does NOT exist** (removed in the redesign)
-- Dock: `#jw-dock` + `.jw-tab[data-tab=preview|jarvis|editor|tasks|review|mobile]`
-  + `.jw-pane[data-pane=...]` · splitter `#jw-dock-splitter` · maximize `#jw-dock-max` (editor/preview only)
-  · open editor standalone `#jw-dock-external` (editor tab only)
+- Dock: `#jw-dock` + `.jw-tab[data-tab=preview|jarvis|tasks|review|mobile]`
+  + `.jw-pane[data-pane=...]` · splitter `#jw-dock-splitter` · maximize `#jw-dock-max` (preview/jarvis only)
+- Code editor: the sliding `#jw-editor` (`window.JarvisSlideEditor`); open a file at a line with
+  `window.JarvisAbrirArchivo(path, line, col)`; «go to file» = Ctrl+Shift+P (`.ar-overlay`)
 - Quick picker: `Ctrl+\\` → `.qp-overlay`; rows `.qp-row`
 - Themes: `html[data-theme=<name>]` (default violet = no attribute); change via `JarvisThemes.aplicar('<name>')`
 - JS API in console: `JarvisDock.open/setTab/notify/isOpen/activeTab`, `WebPreview.setUrl/detectar`, `JarvisSettings.open`, `JarvisThemes.aplicar/actual`

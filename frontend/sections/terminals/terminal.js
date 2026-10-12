@@ -268,39 +268,32 @@ if (typeof window !== 'undefined') {
 
 // ── Links `archivo:línea` clickeables ────────────────────────────────────────
 // Los agentes imprimen `frontend/x.js:42` a rolete: al clickearlos abrimos el
-// editor de Jarvis en esa línea (no el browser externo). Sólo extensiones de
-// código conocidas, para no confundir dominios (`x.com:3000`).
-const RE_ARCHIVO_LINEA = /(?:^|[\s("'`\[{<])((?:\.\.?\/)?\/?[A-Za-z0-9_@][A-Za-z0-9_@./-]*\.(?:py|js|mjs|cjs|ts|tsx|jsx|css|scss|html?|jsonc?|md|markdown|ya?ml|toml|ini|cfg|conf|sh|bash|zsh|go|rs|java|kt|rb|php|cs|c|cc|cpp|h|hpp|swift|sql|vue|svelte|astro|lua|txt|env))(?::(\d+))(?::(\d+))?/g;
-
+// editor de Jarvis en esa línea (no el browser externo). La detección vive en
+// terminal-links.js (pura, testeada): arma la línea LÓGICA — la fila y sus
+// continuaciones envueltas — así una ruta larga partida en dos filas también es link.
 function _wireLinksArchivo(term) {
+  const TL = window.TerminalLinks;
+  if (!TL) return;
   try {
     term.registerLinkProvider({
       provideLinks(bufferLineNumber, callback) {
-        let line = null;
-        try { line = term.buffer.active.getLine(bufferLineNumber - 1); } catch (_) {}
-        if (!line) { callback(undefined); return; }
-        const text = line.translateToString(true);
-        const links = [];
-        RE_ARCHIVO_LINEA.lastIndex = 0;
-        let m;
-        while ((m = RE_ARCHIVO_LINEA.exec(text))) {
-          const rel  = m[1];
-          const ln   = m[2] ? parseInt(m[2], 10) : 1;
-          const col  = m[3] ? parseInt(m[3], 10) : 1;
-          const full = rel + (m[2] ? ':' + m[2] : '') + (m[3] ? ':' + m[3] : '');
-          const start = m.index + m[0].length - full.length;
-          if (start >= 2 && text.slice(start - 2, start) === '//') continue;   // URL, no path
-          links.push({
-            range: {
-              start: { x: start + 1, y: bufferLineNumber },
-              end:   { x: start + full.length, y: bufferLineNumber },
-            },
-            text: full,
-            activate: () => {
-              try { window.JarvisEditor?.abrirArchivoEnLinea?.(rel, ln, col); } catch (_) {}
-            },
-          });
+        const buf = term.buffer.active;
+        let y = bufferLineNumber - 1;
+        try { while (y > 0 && buf.getLine(y)?.isWrapped) y--; } catch (_) {}
+        const filas = [];
+        for (let k = y; ; k++) {
+          const l = buf.getLine(k);
+          if (!l || (k > y && !l.isWrapped)) break;
+          filas.push(l.translateToString(true));
         }
+        if (!filas.length) { callback(undefined); return; }
+        const links = TL.linksArchivo(filas, term.cols, y + 1)
+          .filter(lk => TL.tocaFila(lk, bufferLineNumber))
+          .map(lk => ({
+            range: lk.range,
+            text: lk.texto,
+            activate: () => { try { window.JarvisAbrirArchivo?.(lk.ruta, lk.linea, lk.col); } catch (_) {} },
+          }));
         callback(links.length ? links : undefined);
       },
     });

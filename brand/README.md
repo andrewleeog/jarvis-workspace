@@ -121,7 +121,7 @@ deterministic. If Playwright cannot find its browser, point `CHROMIUM_PATH` at a
 
 Not done on purpose — it is a visible product change. When you want it: copy `app/web/*` into `frontend/`
 (everything under it is served at `/static`), add the `<link>` tags above to `index.html`,
-`shell/workspace.html` and `editor-standalone.html` (bump their `?v=`), and, if the app should answer
+`shell/workspace.html` (bump its `?v=`), and, if the app should answer
 `/favicon.ico` at the root, add a FastAPI route for it.
 
 ## Background

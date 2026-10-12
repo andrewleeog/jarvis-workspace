@@ -3,7 +3,7 @@
 // balanceada (cols=ceil(√N), última fila estira). Resize = divisor de paneles:
 // la vecina se achica/crece en su lugar (no se mueve). Drag = intercambia celdas.
 // La lógica pura (sin DOM) es testeable en Node; el motor DOM solo se instala en
-// el navegador. Espeja el patrón window.JarvisEditor.
+// el navegador.
 (function (global) {
   'use strict';
 

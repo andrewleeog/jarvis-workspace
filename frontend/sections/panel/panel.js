@@ -1,6 +1,6 @@
 // JARVIS — JarvisDock: el Panel Único dockeado a la derecha del mosaico.
 // Header de pestañas (solo iconos) + splitter contra las terminales + maximizar.
-// Espeja el patrón window.JarvisEditor / window.TerminalLayout: lógica pura
+// Espeja el patrón window.TerminalLayout: lógica pura
 // (sin DOM, testeable en Node) + motor DOM (solo navegador). Los contenidos de
 // cada pestaña NO se reescriben: sus contenedores ya viven en workspace.html y
 // se alternan con el atributo `hidden` (display:none) — NUNCA animar width.
@@ -371,10 +371,6 @@
         max.setAttribute('aria-pressed', _state.maximized ? 'true' : 'false');
       }
 
-      // ↗ "Abrir en pestaña de navegador": solo con el editor a la vista
-      const ext = $('jw-dock-external');
-      if (ext) ext.hidden = !(_state.open && _state.tab === 'editor');
-
       // Toggle ▣ del bar: estado on/off + badge suma
       const toggle = $('jw-dock-toggle');
       if (toggle) {
@@ -405,18 +401,9 @@
         _cb.onTabShown?.(_state.tab);
       }
 
-      // Maximizar/restaurar: refit del contenido del pane activo (Task 29).
-      // onResized (arriba) ya dispara un relayout síncrono, pero al pasar a
-      // position:fixed el layout se asienta recién tras el reflow del fixed;
-      // dos pasadas diferidas evitan franjas muertas en entornos más lentos.
-      const cambioMax = !prev || prev.maximized !== _state.maximized;
-      if (cambioMax && _state.open) {
-        if (_state.tab === 'editor') {
-          requestAnimationFrame(() => global.JarvisEditor?.relayout?.());
-          setTimeout(() => global.JarvisEditor?.relayout?.(), 240);
-        }
-        // preview (iframe): no requiere refit (spec §4.1).
-      }
+      // Maximizar/restaurar: onResized (arriba) ya dispara el relayout; el preview
+      // (screencast) no requiere refit (spec §4.1). El refit diferido era del
+      // editor Monaco del dock, que se retiró.
     }
 
     // _El toggle de la franja es de la Fase 1 — JarvisDock no lo toca._
@@ -481,7 +468,6 @@
       // Refit forzado al soltar (mosaico + contenido del pane activo).
       global.TerminalLayout?.relayoutAll?.();
       _cb.onResized?.();
-      if (_state.tab === 'editor') global.JarvisEditor?.relayout?.();
     }
 
     // ── Wire único de todos los controles del dock/strip ────────────
@@ -499,9 +485,6 @@
       // Acciones del header del dock
       $('jw-dock-close')?.addEventListener('click', () => _dispatch({ type: 'close' }));
       $('jw-dock-max')?.addEventListener('click', () => _dispatch({ type: 'setMax', value: !_state.maximized }));
-      $('jw-dock-external')?.addEventListener('click', () => {
-        if (_projectId) global.open(`/editor?project=${encodeURIComponent(_projectId)}`, '_blank');
-      });
       // Toggle ▣ del bar
       $('jw-dock-toggle')?.addEventListener('click', () => _dispatch({ type: 'toggle' }));
       // (La franja —#jw-strip-hide / #jw-strip-home y Ctrl+B— la maneja la Fase 1;

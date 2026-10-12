@@ -246,3 +246,11 @@
   border-radius: 5px; padding: 0 7px; color: var(--ob-fg-0); font: 500 11.5px var(--font-mono, monospace);
   outline: none; box-shadow: 0 0 0 3px var(--ob-accent-14); }
 .sb-fnew-input::placeholder{ color: var(--ob-fg-4); }
+
+/* Destello de la línea a la que saltó un link `archivo:línea` (terminal, Review). */
+.ce-line-bg.ce-flash { animation: ce-flash 1.4s var(--ease-out, ease-out); }
+@keyframes ce-flash {
+  0%, 30% { background: color-mix(in oklch, var(--ob-accent) 32%, transparent); }
+  100% { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .ce-line-bg.ce-flash { animation: none; } }

@@ -86,9 +86,13 @@
   const setInteract = (v) => { try { global.TerminalLayout?.setInteracting?.(v); } catch (_) {} };
 
   // ════════════════ API ════════════════
-  async function abrirArchivo(projId, path) {
+  // A qué línea ir cuando el archivo termine de montarse (links `archivo:línea`
+  // de las terminales, «Abrir» de Review). Se consume al pintar ESE archivo.
+  let _irA = null;   // { path, linea, col }
+  async function abrirArchivo(projId, path, opts) {
     if (!path) return;
     _projId = projId;
+    _irA = opts && opts.linea ? { path, linea: opts.linea, col: opts.col || 1 } : null;
     const name = path.split('/').pop();
     if (!state.open.find(t => t.path === path)) { state.open.push({ path, name }); if (state.open.length > 8) state.open.shift(); }
     state.active = path;
@@ -131,7 +135,7 @@
   function isOpen() { return state.editorOpen; }
   // ¿Hay algún archivo con cambios sin guardar? onProjectChanged vacía _cache
   // (donde viven los buffers), así que el shell pregunta ANTES de cambiar de
-  // proyecto — mismo contrato que JarvisEditor.confirmarDescarteSiSucio.
+  // proyecto.
   function hayDirty() { return Object.values(_cache).some(b => b && b.dirty); }
   async function confirmarDescarteSiSucio() {
     if (!hayDirty()) return true;
@@ -325,6 +329,21 @@
       }
     });
     repaint(); gutUpdate(); activeUpdate();
+    if (_irA && _irA.path === path) {
+      const { linea, col } = _irA; _irA = null;
+      // Cursor en línea:col, la línea centrada y un destello para encontrarla.
+      const lineas = ta.value.split('\n');
+      const n = Math.min(Math.max(1, parseInt(linea, 10) || 1), lineas.length);
+      const c = Math.min(Math.max(1, parseInt(col, 10) || 1), lineas[n - 1].length + 1);
+      let off = 0; for (let i = 0; i < n - 1; i++) off += lineas[i].length + 1;
+      ta.focus({ preventScroll: true });
+      ta.selectionStart = ta.selectionEnd = off + c - 1;
+      requestAnimationFrame(() => {
+        ta.scrollTop = Math.max(0, pt + (n - 1) * lh - ta.clientHeight / 2);
+        syncScroll(); activeUpdate();
+        bg.classList.remove('ce-flash'); void bg.offsetWidth; bg.classList.add('ce-flash');
+      });
+    }
   }
   // Rama REAL del proyecto (antes decía "master" fijo, y el repo usa main).
   // Una consulta por proyecto; sin git o mientras llega, no se muestra nada.
