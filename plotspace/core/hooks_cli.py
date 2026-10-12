@@ -6,6 +6,9 @@ para los dos eventos de herramientas:
 
   PostToolUse (Edit|Write|NotebookEdit) → registra la edición REAL en Jarvis.
   PreToolUse  (Edit|Write|NotebookEdit) → pregunta ANTES de escribir.
+  PreToolUse  (Bash) → frena git destructivo en el árbol compartido (stash,
+              reset --hard, clean -f, checkout/restore que descartan, add -A,
+              commit -a). Chequeo LOCAL en el hook: no llama al server.
 
 PreToolUse mira TODAS las escrituras, pero frena muy poco: la sobrescritura
 total de un archivo que otro tocó recién, y las ediciones que borran o
@@ -40,7 +43,7 @@ TIMEOUT_S = 5
 # escribir un matcher inventado sería basura en el settings del usuario).
 _EVENTOS = (
     ('PostToolUse', 'Edit|Write|NotebookEdit'),
-    ('PreToolUse',  'Edit|Write|NotebookEdit'),
+    ('PreToolUse',  'Edit|Write|NotebookEdit|Bash'),
     ('UserPromptSubmit', None),
     # El agente terminó de responder: el hook avisa a Jarvis al instante y suena
     # la campanita (el heurístico de quietud del pane tardaba ~16 s).

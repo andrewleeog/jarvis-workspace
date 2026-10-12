@@ -497,6 +497,26 @@ def mantener_memorias() -> dict:
     return resumen
 
 
+PRIMERA_FOTO_WIP_S = 60
+
+
+async def _pasada_wip():
+    """Paracaídas del árbol compartido: foto del WIP sucio de cada proyecto a
+    refs/jarvis/wip (índice temporal — jamás el real). Nunca crashea."""
+    try:
+        from plotspace.core.wip_snapshots import snapshots_todos
+        rw = await asyncio.to_thread(snapshots_todos)
+        if rw['fotos']:
+            print(f"[mantenimiento] wip: {rw['fotos']} snapshot(s) del árbol sucio")
+        # Los fallos se dicen SIEMPRE: este paracaídas estuvo cinco días
+        # muerto porque un 0 silencioso se leía igual que "no había nada".
+        if rw.get('fallos'):
+            print(f"[mantenimiento] ⚠ wip: {rw['fallos']} snapshot(s) FALLARON — "
+                  + '; '.join(rw.get('motivos', [])[:3]))
+    except Exception as e:
+        print(f'[mantenimiento] snapshots de WIP fallaron: {e}')
+
+
 async def poller_purga_logs():
     """Background task: cada 30 min purga los logs viejos/inactivos (la fuga de
     disco de .workspace/logs) + corre el janitor de huérfanos (clientes attach
@@ -511,6 +531,11 @@ async def poller_purga_logs():
                   + (f" (+espejo {r0['espejo']})" if r0['espejo'] else ''))
     except Exception as e:
         print(f'[mantenimiento] backup de DB al boot falló: {e}')
+    # Primera foto del WIP al minuto de arrancar, no a los 30: cada "Update now"
+    # reinicia el proceso (y este reloj), así que con 30 min de espera la foto
+    # casi nunca llegaba a salir durante una sesión de trabajo real.
+    await asyncio.sleep(PRIMERA_FOTO_WIP_S)
+    await _pasada_wip()
     while True:
         await asyncio.sleep(1800)
         try:
@@ -538,20 +563,7 @@ async def poller_purga_logs():
             await asyncio.to_thread(pasada_janitor)
         except Exception as e:
             print(f'[mantenimiento] escalera de endurecimiento falló: {e}')
-        try:
-            # Paracaídas del árbol compartido: foto del WIP sucio de cada
-            # proyecto a refs/jarvis/wip (índice temporal — jamás el real).
-            from plotspace.core.wip_snapshots import snapshots_todos
-            rw = await asyncio.to_thread(snapshots_todos)
-            if rw['fotos']:
-                print(f"[mantenimiento] wip: {rw['fotos']} snapshot(s) del árbol sucio")
-            # Los fallos se dicen SIEMPRE: este paracaídas estuvo cinco días
-            # muerto porque un 0 silencioso se leía igual que "no había nada".
-            if rw.get('fallos'):
-                print(f"[mantenimiento] ⚠ wip: {rw['fallos']} snapshot(s) FALLARON — "
-                      + '; '.join(rw.get('motivos', [])[:3]))
-        except Exception as e:
-            print(f'[mantenimiento] snapshots de WIP fallaron: {e}')
+        await _pasada_wip()
         try:
             r2 = await asyncio.to_thread(ronda_huerfanos)
             if r2['clientes_attach_matados']:

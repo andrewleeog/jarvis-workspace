@@ -287,8 +287,12 @@ def revertir_archivos(project_id: int, body: dict = Body(default=None)):
     """Descarta los cambios de SOLO los archivos indicados y los deja como en
     HEAD. Tracked: `git restore --source=HEAD --staged --worktree` (un archivo
     agregado al índice que no está en HEAD se borra). Untracked: `git clean -fd`
-    acotado a esos paths (nunca toca ignorados ni tracked). Es irreversible: la
-    UI pide confirmación antes de llamarlo."""
+    acotado a esos paths (nunca toca ignorados ni tracked).
+
+    ANTES de tocar nada saca una foto del árbol sucio (refs/jarvis/wip/<ts>,
+    índice temporal: no toca el de los agentes) y la devuelve en `respaldo`:
+    /review/deshacer restaura desde ahí. Si la foto no sale, NO se descarta
+    nada (antes era irreversible y podía llevarse trabajo de otro agente)."""
     body = body or {}
     cwd = _ruta_proyecto(project_id)
 
@@ -296,6 +300,13 @@ def revertir_archivos(project_id: int, body: dict = Body(default=None)):
     if rc != 0:
         raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
     rels = _rels_seguros(cwd, body.get('archivos'))
+
+    from plotspace.core import wip_snapshots
+    respaldo = wip_snapshots.snapshot_wip(cwd)
+    if not respaldo and wip_snapshots.ultimo_fallo():
+        return {"ok": False,
+                "error": "No pude guardar una copia antes de descartar, así que no descarté nada: "
+                         + wip_snapshots.ultimo_fallo()}
 
     nuevos = _untracked(cwd)
     limpiar = [r for r in rels if r.rstrip('/') in nuevos]
@@ -311,7 +322,38 @@ def revertir_archivos(project_id: int, body: dict = Body(default=None)):
         if rc != 0:
             return {"ok": False, "error": _error_git(out, err, "git clean falló")}
 
-    return {"ok": True, "revertidos": restaurar, "borrados": limpiar}
+    return {"ok": True, "revertidos": restaurar, "borrados": limpiar, "respaldo": respaldo}
+
+
+_RE_RESPALDO = re.compile(r'^refs/jarvis/wip/\d{8}-\d{6}$')
+
+
+@router.post("/projects/{project_id}/review/deshacer")
+def deshacer_descarte(project_id: int, body: dict = Body(default=None)):
+    """Deshace un "Descartar": restaura los archivos indicados desde la foto que
+    sacó /review/revert (`respaldo`). Solo acepta refs de Jarvis
+    (refs/jarvis/wip/<ts>) y paths dentro del proyecto. Los archivos que no
+    estaban en la foto se dejan como están."""
+    body = body or {}
+    cwd = _ruta_proyecto(project_id)
+    respaldo = str(body.get('respaldo') or '')
+    if not _RE_RESPALDO.match(respaldo):
+        raise HTTPException(status_code=400, detail="Respaldo inválido")
+    rc, _ = _git(cwd, 'rev-parse', '--verify', '--quiet', respaldo + '^{commit}')
+    if rc != 0:
+        raise HTTPException(status_code=400, detail="Ese respaldo ya no existe")
+    rels = _rels_seguros(cwd, body.get('archivos'))
+    # Solo lo que la foto tiene (un path ausente haría fallar el restore entero).
+    rc, listado = _git(cwd, '-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only',
+                       respaldo, '--', *rels)
+    presentes = {l.strip() for l in listado.splitlines() if l.strip()}
+    restaurar = [r for r in rels
+                 if any(p == r.rstrip('/') or p.startswith(r.rstrip('/') + '/') for p in presentes)]
+    if restaurar:
+        rc, out, err = _git_full(cwd, 'restore', f'--source={respaldo}', '--worktree', '--', *restaurar)
+        if rc != 0:
+            return {"ok": False, "error": _error_git(out, err, "git restore falló")}
+    return {"ok": True, "restaurados": restaurar}
 
 
 def _rama_base(cwd: str) -> str:
