@@ -395,6 +395,10 @@ async def _startup():
         await reconciliar_al_boot()
         await poller_agentes()
     _bg_tasks.append(asyncio.create_task(_reconciliar_y_pollear_agentes()))
+    # Agentes que te necesitan en CUALQUIER proyecto (espera/bloqueo/error/límite):
+    # escucha los eventos por proyecto y los anuncia global (core/atencion.py).
+    from plotspace.core import atencion
+    atencion.registrar_listener()
 
     # 8. Agents Live: tracking de archivos por agente + propiedad/permisos
     from plotspace.core.agent_live import poller_live

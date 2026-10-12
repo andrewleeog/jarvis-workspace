@@ -1698,6 +1698,11 @@ async def teardown_terminal(terminal_id: int):
     el activa=0). Reutilizable desde el orquestador (close_terminal/close_all),
     que antes solo marcaba activa=0 y dejaba al agente tmux corriendo eterno."""
     detener_monitor(terminal_id)
+    try:
+        from plotspace.core import atencion
+        atencion.olvidar_terminal(terminal_id)   # su aviso ya no lleva a ningún lado
+    except Exception:
+        pass
     info = terminal_processes.pop(terminal_id, None)
     if info:
         try:

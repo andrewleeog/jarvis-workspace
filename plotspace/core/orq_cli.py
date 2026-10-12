@@ -21,8 +21,10 @@ Capa pura (testeable sin subproceso): `_env_suscripcion`, `_argv`,
 `prompt_desde_mensajes`, `eventos_desde_lineas`. Capa impura: `stream()`.
 """
 import asyncio
+import datetime
 import json
 import os
+import re
 import shutil
 
 BIN = 'claude'
@@ -32,7 +34,67 @@ TIMEOUT_S = float(os.environ.get('ORQ_CLI_TIMEOUT', '240'))
 
 class OrqCliError(RuntimeError):
     """El CLI falló (no instalado, sin login, crash, timeout). El mensaje es
-    apto para mostrarse en el chat."""
+    apto para mostrarse en el chat. `codigo` (ver `diagnosticar`) le dice a la
+    UI qué ofrecer: abrir Cuentas, instalar el CLI, reintentar más tarde."""
+
+    def __init__(self, mensaje: str, codigo: str = None):
+        super().__init__(mensaje)
+        self.codigo = codigo or diagnosticar(mensaje)['codigo']
+
+
+# ─── Diagnóstico de fallas (puro) ─────────────────────────────────────────────
+# El texto que devuelve `claude -p` cuando falla es lo ÚNICO confiable: el login
+# de Claude Code vive en el Keychain en macOS, así que mirar ~/.claude para
+# "adivinar" si hay sesión daría falsos «no estás logueado».
+_RE_LOGIN = re.compile(
+    r'invalid api key|please run /login|run\s+`?/login|not logged in|log ?in required|'
+    r'oauth token (?:has )?expired|token (?:has )?expired|authentication_error|'
+    r'invalid (?:bearer|oauth|x-api-key)|\b401\b', re.I)
+_RE_LIMITE = re.compile(
+    r'usage limit|limit reached|hit your .{0,20}limit|5[\s-]?hour limit|weekly limit|'
+    r'rate_limit_error|rate.?limit.?(?:reached|exceeded)|quota exceeded|'
+    r'credit balance is too low|out of (?:usage|credits)', re.I)
+_RE_SOBRECARGA = re.compile(r'overloaded|\b529\b|\b503\b|service unavailable', re.I)
+_RE_NO_INSTALADO = re.compile(r'no está instalado|not installed|command not found|no such file', re.I)
+# "Claude AI usage limit reached|1760300000" (epoch del reset) o "… resets 3pm (…)"
+_RE_RESET_EPOCH = re.compile(r'\|(\d{10})\b')
+_RE_RESET_TEXTO = re.compile(r'resets?\s+(?:at\s+)?([^·∙|\n.]{1,40})', re.I)
+
+
+def diagnosticar(texto: str) -> dict:
+    """{'codigo': 'login'|'limite'|'sobrecarga'|'no_instalado'|'otro',
+        'reset': str|None} a partir del texto de error del CLI."""
+    t = str(texto or '')
+    reset = None
+    m = _RE_RESET_EPOCH.search(t)
+    if m:
+        try:
+            reset = datetime.datetime.fromtimestamp(int(m.group(1))).strftime('%H:%M')
+        except (OverflowError, OSError, ValueError):
+            reset = None
+    if reset is None:
+        m = _RE_RESET_TEXTO.search(t)
+        if m:
+            reset = m.group(1).strip()
+    if _RE_NO_INSTALADO.search(t) and 'claude' in t.lower():
+        codigo = 'no_instalado'
+    elif _RE_LIMITE.search(t):
+        codigo = 'limite'
+    elif _RE_LOGIN.search(t):
+        codigo = 'login'
+    elif _RE_SOBRECARGA.search(t):
+        codigo = 'sobrecarga'
+    else:
+        codigo = 'otro'
+    return {'codigo': codigo, 'reset': reset if codigo == 'limite' else None}
+
+
+def error_de_resultado(resultado) -> OrqCliError:
+    """El `result` del CLI vino con is_error (o no vino): el error con SU texto
+    — antes el chat mostraba «sin resultado utilizable» y el motivo real (sin
+    login, sin cuota) se perdía."""
+    texto = ((resultado or {}).get('texto') or '').strip() or 'sin resultado'
+    return OrqCliError(f'el CLI terminó con error: {texto[:300]}', diagnosticar(texto)['codigo'])
 
 
 # ─── Capa pura ────────────────────────────────────────────────────────────────
