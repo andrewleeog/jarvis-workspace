@@ -250,6 +250,7 @@ def test_callback_pelado_no_rompe_dev_servers():
 def _reset_estado():
     dd._detectados.clear()
     dd._descartadas.clear()
+    dd._rechazados.clear()
 
 
 def test_estado_vacio():
@@ -485,7 +486,7 @@ def test_ciclo_anuncia_y_oculta_demo(monkeypatch, tmp_path):
     monkeypatch.setattr(dd, '_FRONTEND_DIR', str(tmp_path))
     monkeypatch.setattr(dd, '_rows_activas',
                         lambda: [{'tid': 5, 'tnombre': 'Diseño', 'pid': 9, 'ruta': '/x'}])
-    monkeypatch.setattr(dd, '_puertos_listen', lambda: set())
+    monkeypatch.setattr(dd, '_listen_firmas', lambda: {})
     monkeypatch.setattr(dd, '_proyecto_es_expo', lambda ruta: False)
 
     async def _cap(tid):
@@ -675,24 +676,83 @@ def _psutil_falso(monkeypatch, conexiones):
     monkeypatch.setitem(sys.modules, 'psutil', mod)
 
 
-def test_puertos_listen_usa_psutil(monkeypatch):
+_PROC_TCP = (
+    '  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n'
+    '   0: 0100007F:1435 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 41001 1\n'
+    '   1: 00000000:1F40 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 41002 1\n'
+    '   2: 0100007F:1435 0100007F:9C40 01 00000000:00000000 00:00000000 00000000  1000        0 41003 1\n'
+)
+
+
+def test_en_linux_lee_proc_con_el_inode_de_firma(monkeypatch, tmp_path):
+    # /proc/net/tcp: ≈1 ms, sin recorrer procesos. 0x1435 = 5173, 0x1F40 = 8000;
+    # la fila ESTABLISHED (01) no cuenta. psutil ni se toca.
+    f = tmp_path / 'tcp'
+    f.write_text(_PROC_TCP)
+    monkeypatch.setattr(dd, '_RUTAS_PROC_TCP', (str(f), str(tmp_path / 'no-tcp6')))
+    _psutil_falso(monkeypatch, [_ConnFalsa(1, 1)])
+    assert dd._listen_firmas() == {5173: '41001', 8000: '41002'}
+    assert dd._puertos_listen() == {5173, 8000}
+
+
+def test_sin_proc_usa_psutil(monkeypatch, tmp_path):
+    # macOS/Windows (sin /proc): psutil, con el pid de firma.
+    monkeypatch.setattr(dd, '_RUTAS_PROC_TCP', (str(tmp_path / 'a'), str(tmp_path / 'b')))
     _psutil_falso(monkeypatch, [_ConnFalsa(5173, 10), _ConnFalsa(8000, 11),
                                 _ConnFalsa(9999, 12, status='ESTABLISHED')])
-    puertos = dd._puertos_listen()
-    assert puertos == {5173, 8000}, puertos   # los no-LISTEN no cuentan
+    assert dd._listen_firmas() == {5173: 10, 8000: 11}   # los no-LISTEN no cuentan
 
 
-def test_puertos_listen_cae_al_lector_de_proc(monkeypatch):
-    # Sin psutil (o con psutil roto) NO puede quedarse sin detectar nada en
-    # Linux: el lector de /proc sigue ahí.
+def test_sin_proc_y_psutil_roto_no_explota(monkeypatch, tmp_path):
     import sys, types
+    monkeypatch.setattr(dd, '_RUTAS_PROC_TCP', (str(tmp_path / 'a'),))
     monkeypatch.setitem(sys.modules, 'psutil',
                         types.SimpleNamespace(
                             CONN_LISTEN='LISTEN',
                             net_connections=lambda kind=None: (_ for _ in ()).throw(
                                 OSError('sin permisos'))))
-    puertos = dd._puertos_listen()
-    assert isinstance(puertos, set)   # no explota; devuelve lo que /proc diga
+    assert dd._puertos_listen() == set()
+
+
+def test_un_puerto_ajeno_rechazado_no_se_reexamina_hasta_que_cambia():
+    _reset_estado()
+    assert dd.candidatos_nuevos({22: 'i1', 5173: 'i2'}, set(), 100.0) == {22, 5173}
+    dd.rechazar(22, 'i1', 100.0)
+    assert dd.candidatos_nuevos({22: 'i1', 5173: 'i2'}, set(), 101.0) == {5173}
+    # Otro proceso tomó el puerto (firma nueva) → se vuelve a examinar
+    assert dd.candidatos_nuevos({22: 'i9'}, set(), 102.0) == {22}
+    # Y pasado el TTL también (un proyecto agregado después lo puede reclamar)
+    dd.rechazar(22, 'i9', 102.0)
+    assert dd.candidatos_nuevos({22: 'i9'}, set(), 102.0 + dd.RECHAZO_TTL_S + 1) == {22}
+    # Jarvis y lo ya conocido nunca son candidatos
+    assert dd.candidatos_nuevos({dd.PUERTO_JARVIS: 'x', 5173: 'y'}, {5173}, 0.0) == set()
+    _reset_estado()
+
+
+def test_ciclo_no_escanea_procesos_por_el_mismo_puerto_ajeno_cada_tick(monkeypatch):
+    """El caso real: un sshd / una base local en LISTEN sin proyecto. Antes era
+    "candidato nuevo" en CADA tick (2 s) y disparaba net_connections + tmux por
+    terminal para siempre. Ahora se examina una vez por listener."""
+    import asyncio
+    _reset_estado()
+    monkeypatch.setattr(dd, '_rows_activas', lambda: [])
+    monkeypatch.setattr(dd, '_proyectos_rows', lambda: [{'id': 1, 'ruta': '/proyectos/app'}])
+    monkeypatch.setattr(dd, '_listen_firmas', lambda: {22: 'inode-sshd'})
+    escaneos = {'n': 0}
+
+    def _listeners():
+        escaneos['n'] += 1
+        return [{'port': 22, 'pid': 4242}]
+    monkeypatch.setattr(dd, '_ss_listeners', _listeners)
+    monkeypatch.setattr(dd, '_pane_pids_por_terminal', lambda rows: {})
+    monkeypatch.setattr(dd, '_proceso_es_login_cli', lambda pid: False)
+    monkeypatch.setattr(dd, '_cwd_de_pid', lambda pid: '/usr/sbin')
+    monkeypatch.setattr(dd, '_persistir_estado', lambda: None)
+    for _ in range(3):
+        asyncio.run(dd._ciclo())
+    assert escaneos['n'] == 1, escaneos
+    assert dd.urls_detectadas(1) == []
+    _reset_estado()
 
 
 def test_listeners_dedupean_ipv4_e_ipv6(monkeypatch):

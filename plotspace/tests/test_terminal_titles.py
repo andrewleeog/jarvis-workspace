@@ -60,11 +60,11 @@ def test_limpiar_titulo_corto_pasa_tal_cual():
 
 def test_titulos_vivos_parsea_una_sola_pasada():
     salida = (
-        'jarvis_471\t✳ Remove terminal output\n'
-        'jarvis_472\t⠐ Fix layout bug when resizing menus in terminals\n'
-        'jarvis_473\tHOST\n'                       # CLI sin título → genérico
-        'jarvis_mpreview_18\tnpx expo start\n'     # no es terminal de card → fuera
-        'otra_sesion\tlo que sea\n'                # ajena a jarvis → fuera
+        'jarvis_471\t1\t0\tclaude\t✳ Remove terminal output\n'
+        'jarvis_472\t2\t0\tclaude\t⠐ Fix layout bug when resizing menus in terminals\n'
+        'jarvis_473\t3\t0\tclaude\tHOST\n'                       # CLI sin título → genérico
+        'jarvis_mpreview_18\t4\t0\tnode\tnpx expo start\n'     # no es terminal de card → fuera
+        'otra_sesion\t5\t0\tbash\tlo que sea\n'                # ajena a jarvis → fuera
     )
     with mock.patch.object(term.subprocess, 'run') as m, \
          mock.patch.object(term, '_hostname', return_value='HOST'):

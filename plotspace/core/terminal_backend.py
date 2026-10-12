@@ -32,6 +32,7 @@ Ver CLAUDE.md § "subprocess.run vs asyncio para tmux/git".
 import asyncio
 import subprocess
 import threading
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Set
@@ -163,6 +164,14 @@ class TerminalBackend(ABC):
         (el server se sigue detectando, solo que sin dueño) — nunca rompe."""
         return None
 
+    def actividad_panes(self, max_edad: float = 0.0) -> Optional[Dict[str, int]]:
+        """{nombre_sesión: último segundo (epoch) con salida en su pane}.
+
+        Con esto la captura compartida (core/pane_capture) re-captura SOLO las
+        pantallas que cambiaron. None = el motor no lo sabe → se captura siempre
+        (el comportamiento de antes)."""
+        return None
+
     @abstractmethod
     def estado_pane(self, terminal_id: int, formato: str) -> Optional[str]:
         """Una propiedad del pane (pid, título, flags…) según el motor."""
@@ -196,6 +205,46 @@ class TmuxBackend(TerminalBackend):
     """
 
     PREFIJO = 'jarvis_'
+
+    # UNA foto de todos los panes (sesión, pid, actividad, comando, título) por
+    # `list-panes -a`: antes títulos y comandos eran llamadas aparte, el pid no
+    # se sabía, y cada poller capturaba cada pantalla por tick aunque no cambiara.
+    _FORMATO_PANES = ('#{session_name}\t#{pane_pid}\t#{window_activity}'
+                      '\t#{pane_current_command}\t#{pane_title}')
+
+    def __init__(self):
+        self._foto = None                    # (monotonic, {sesión: {...}})
+        self._lock_foto = threading.Lock()   # dos pollers a la vez → un solo fork
+
+    def _foto_panes(self, max_edad: float = 0.0) -> Optional[Dict[str, dict]]:
+        """{sesión: {'pid', 'actividad', 'comando', 'titulo'}} de todos los panes.
+        Reusa la foto si tiene < max_edad segundos (0 = siempre fresca). None si
+        tmux no respondió (≠ {}: "no hay sesiones")."""
+        with self._lock_foto:
+            foto = self._foto
+            if foto is not None and max_edad > 0 and time.monotonic() - foto[0] < max_edad:
+                return foto[1]
+            try:
+                r = subprocess.run(['tmux', 'list-panes', '-a', '-F', self._FORMATO_PANES],
+                                   capture_output=True, text=True, timeout=TIMEOUT_CONTROL)
+            except Exception:
+                return None
+            if r.returncode != 0:
+                return None
+            salida: Dict[str, dict] = {}
+            for linea in r.stdout.splitlines():
+                partes = linea.split('\t', 4)      # el título (último) puede traer tabs
+                if len(partes) < 5:
+                    continue
+                sesion, pid, act, cmd, titulo = partes
+                salida.setdefault(sesion.strip(), {
+                    'pid': int(pid) if pid.strip().isdigit() else None,
+                    'actividad': int(act) if act.strip().isdigit() else None,
+                    'comando': cmd.strip(),
+                    'titulo': titulo,
+                })
+            self._foto = (time.monotonic(), salida)
+            return salida
 
     # ── identidad ────────────────────────────────────────────────────────
     def nombre_sesion(self, terminal_id: int) -> str:
@@ -350,39 +399,23 @@ class TmuxBackend(TerminalBackend):
         return set(r.stdout.splitlines()) if r.returncode == 0 else set()
 
     def comandos_vivos(self) -> Optional[Dict[str, str]]:
-        try:
-            r = subprocess.run(
-                ['tmux', 'list-panes', '-a', '-F',
-                 '#{session_name}\t#{pane_current_command}'],
-                capture_output=True, text=True, timeout=TIMEOUT_CONTROL)
-        except Exception:
-            return None
-        if r.returncode != 0:
-            return None
-        salida = {}
-        for linea in r.stdout.splitlines():
-            if '\t' in linea:
-                sesion, cmd = linea.split('\t', 1)
-                salida.setdefault(sesion.strip(), cmd.strip())
-        return salida
+        foto = self._foto_panes()
+        return None if foto is None else {s: v['comando'] for s, v in foto.items()}
 
     def titulos_vivos(self) -> Dict[str, str]:
-        try:
-            r = subprocess.run(
-                ['tmux', 'list-panes', '-a', '-F', '#{session_name}\t#{pane_title}'],
-                capture_output=True, text=True, timeout=TIMEOUT_CONTROL,
-            )
-        except Exception:
-            return {}
-        if r.returncode != 0:
-            return {}
-        titulos = {}
-        for linea in r.stdout.splitlines():
-            if '\t' not in linea:
-                continue
-            sesion, titulo = linea.split('\t', 1)
-            titulos[sesion] = titulo
-        return titulos
+        foto = self._foto_panes()
+        return {} if foto is None else {s: v['titulo'] for s, v in foto.items()}
+
+    def actividad_panes(self, max_edad: float = 0.0) -> Optional[Dict[str, int]]:
+        foto = self._foto_panes(max_edad)
+        return None if foto is None else {s: v['actividad'] for s, v in foto.items()
+                                          if v['actividad'] is not None}
+
+    def pid_de_terminal(self, terminal_id: int) -> Optional[int]:
+        # El pid del shell del pane: un dev server levantado en esta terminal lo
+        # tiene de ancestro → el menú de localhost dice de quién es.
+        foto = self._foto_panes(max_edad=2.0)
+        return ((foto or {}).get(self.nombre_sesion(terminal_id)) or {}).get('pid')
 
     def estado_pane(self, terminal_id: int, formato: str) -> Optional[str]:
         try:
