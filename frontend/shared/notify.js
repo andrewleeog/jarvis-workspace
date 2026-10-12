@@ -22,7 +22,18 @@
     return permiso === 'granted' && !!osOptIn;
   }
 
-  const pure = { tituloFlash, debeAvisar, debeOsNotif };
+  // Texto de la notificación del SO. `tipo`: 'termino' | 'espera' y, para avisos
+  // de OTRO proyecto (core/atencion.py), 'bloqueado' | 'error' | 'limite'.
+  const _FRASES = {
+    termino: '{n} terminó', espera: '{n} espera respuesta', bloqueado: '{n} se bloqueó',
+    error: '{n} terminó con error', limite: '{n} se quedó sin cuota de uso',
+  };
+  function cuerpoAviso({ tipo, nombre, proyecto } = {}, tr = (s) => s) {
+    const frase = tr(_FRASES[tipo] || _FRASES.termino).replace('{n}', nombre || tr('Un agente'));
+    return proyecto ? `${proyecto} · ${frase}` : frase;
+  }
+
+  const pure = { tituloFlash, debeAvisar, debeOsNotif, cuerpoAviso };
   global.JarvisNotify = Object.assign(global.JarvisNotify || {}, { _pure: pure });
   if (typeof document === 'undefined') return;  // tests Node: solo _pure
 
@@ -54,8 +65,9 @@
     _base = null;
   }
 
-  // tipo ∈ 'termino' | 'espera' · nombre = nombre de la terminal
-  global.JarvisNotify.avisar = ({ tipo, nombre, sonidoOn } = {}) => {
+  // tipo ∈ 'termino' | 'espera' | 'bloqueado' | 'error' | 'limite' · nombre = la
+  // terminal · proyecto = nombre del proyecto si es de OTRO · alHacer = al clickear
+  global.JarvisNotify.avisar = ({ tipo, nombre, proyecto, sonidoOn, alHacer } = {}) => {
     if (!debeAvisar({ hidden: document.hidden, sonidoOn })) return;
     if (_pend === 0 && !_timer) _base = document.title;
     _pend++;
@@ -65,10 +77,12 @@
       try {
         // Fuera del DOM (notificación del SO): el observer de i18n no la ve → t().
         const tr = (s) => (global.JarvisI18n && global.JarvisI18n.t) ? global.JarvisI18n.t(s) : s;
-        const cuerpo = tr(tipo === 'espera' ? '{n} espera respuesta' : '{n} terminó')
-          .replace('{n}', nombre || tr('Un agente'));
+        const cuerpo = cuerpoAviso({ tipo, nombre, proyecto }, tr);
         const n = new Notification('Jarvis', { body: cuerpo, tag: 'jarvis-agente' });
-        n.onclick = () => { window.focus(); n.close(); };
+        n.onclick = () => {
+          window.focus(); n.close();
+          if (typeof alHacer === 'function') { try { alHacer(); } catch (_) {} }
+        };
       } catch (_) { /* el SO puede negar; el flash de título ya avisó */ }
     }
   };

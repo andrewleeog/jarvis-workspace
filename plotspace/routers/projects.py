@@ -191,10 +191,16 @@ async def proyectos_con_trabajo():
     Sin esto, el contador de los workspaces que no son el activo se congelaba en
     el valor del último `GET /api/projects` (nada avisa cuando otro workspace
     abre o cierra terminales) — se veía como "Derlis-APP no muestra terminales".
+    `atencion` = agentes de cada proyecto que esperan/se bloquearon/fallaron/sin
+    cuota (core/atencion.py), por el mismo camino self-healing.
     Definido ANTES de /{project_id} para no ser sombreado."""
+    from plotspace.core import atencion
     return {
         "ids": sorted(_proyectos_trabajando()),
         "counts": {str(k): v for k, v in _contar_terminales_activas().items()},
+        # Agentes que te necesitan (espera / bloqueado / error / límite), por
+        # proyecto: la franja marca el proyecto aunque estés mirando otro.
+        "atencion": atencion.pendientes(),
     }
 
 

@@ -2389,5 +2389,15 @@
     "sesión encontrada": "session found",
     "sin sesión": "no session",
     "No hay nada para diagnosticar.": "Nothing to diagnose.",
+    // ── Atención entre proyectos (shared/atencion.js) + errores del chat de Jarvis ──
+    "{n} espera tu respuesta": "{n} is waiting for your answer",
+    "{n} se bloqueó": "{n} is blocked",
+    "{n} terminó con error": "{n} finished with an error",
+    "{n} se quedó sin cuota de uso": "{n} ran out of usage quota",
+    "Ir": "Go",
+    "Jarvis necesita una sesión de Claude": "Jarvis needs a Claude session",
+    "La cuenta de Claude llegó a su límite": "The Claude account hit its limit",
+    "Abrir Cuentas": "Open Accounts",
+    "Falta el CLI de Claude": "The Claude CLI is missing",
   });
 })();

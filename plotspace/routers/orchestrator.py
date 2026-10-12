@@ -1187,6 +1187,37 @@ def _guardar_imagen_temporal(image_base64: str, media_type: str = None):
         return None
 
 
+def _mensaje_error_orq(e) -> str:
+    """Lo que el chat le dice al usuario cuando el motor suscripción falla: el
+    motivo REAL y qué hacer (la UI suma el botón según `e.codigo`)."""
+    from plotspace.core import orq_cli
+    crudo = str(e)
+    diag = orq_cli.diagnosticar(crudo)
+    codigo = getattr(e, 'codigo', None) or diag['codigo']
+    if codigo == 'login':
+        return L("Jarvis no tiene una sesión de Claude activa. Iniciá sesión en Ajustes → Cuentas "
+                 "(o corré `claude` en una terminal y usá /login).",
+                 "Jarvis has no active Claude session. Sign in under Settings → Accounts "
+                 "(or run `claude` in a terminal and use /login).")
+    if codigo == 'limite':
+        r = diag.get('reset')
+        return L("La cuenta de Claude activa llegó a su límite de uso"
+                 + (f" (se libera {r})" if r else "")
+                 + ". Cambiá a otra cuenta en Ajustes → Cuentas o esperá a que se libere.",
+                 "The active Claude account hit its usage limit"
+                 + (f" (resets {r})" if r else "")
+                 + ". Switch to another account under Settings → Accounts or wait for the reset.")
+    if codigo == 'sobrecarga':
+        return L("Los servidores de Claude están saturados ahora mismo. Probá de nuevo en un rato.",
+                 "Claude's servers are overloaded right now. Try again in a bit.")
+    if codigo == 'no_instalado':
+        return L("Falta el CLI `claude`, que es con lo que Jarvis piensa. Instalalo desde el selector "
+                 "de terminales (Ctrl+\\) o con `npm i -g @anthropic-ai/claude-code`.",
+                 "The `claude` CLI is missing — it's what Jarvis thinks with. Install it from the "
+                 "terminal picker (Ctrl+\\) or with `npm i -g @anthropic-ai/claude-code`.")
+    return L("Orquestador (suscripción): ", "Orchestrator (subscription): ") + crudo
+
+
 async def _consultar_cli(mensajes: list, project: dict):
     """Una consulta completa al motor suscripción (drena el stream). Devuelve
     (raw_text, usage_namespace, stop_reason) con la MISMA forma que espera
@@ -1202,8 +1233,7 @@ async def _consultar_cli(mensajes: list, project: dict):
         if ev['tipo'] == 'resultado':
             resultado = ev
     if resultado is None or resultado['error']:
-        detalle = (resultado or {}).get('texto') or 'sin resultado'
-        raise orq_cli.OrqCliError(f'el CLI terminó con error: {detalle[:300]}')
+        raise orq_cli.error_de_resultado(resultado)
     usage = SimpleNamespace(input_tokens=resultado['input_tokens'],
                             output_tokens=resultado['output_tokens'])
     return resultado['texto'], usage, 'end_turn'
@@ -1220,7 +1250,7 @@ async def chat_orquestador(req: ChatRequest):
         try:
             raw_text, usage, stop = await _consultar_cli(mensajes, project)
         except OrqCliError as e:
-            raise HTTPException(status_code=502, detail=L("Orquestador (suscripción): ", "Orchestrator (subscription): ") + str(e))
+            raise HTTPException(status_code=502, detail={"error": e.codigo, "message": _mensaje_error_orq(e)})
         return await _procesar_respuesta_orquestador(
             raw_text, usage, project, req, terminals_activas, stop_reason=stop)
 
@@ -1292,11 +1322,13 @@ async def chat_orquestador_stream(req: ChatRequest):
                     elif ev['tipo'] == 'resultado':
                         resultado = ev
             except orq_cli.OrqCliError as e:
-                yield sse({"type": "error", "detail": L("Orquestador (suscripción): ", "Orchestrator (subscription): ") + str(e)})
+                yield sse({"type": "error", "detail": _mensaje_error_orq(e), "codigo": e.codigo})
                 return
             if resultado is None or resultado['error']:
-                yield sse({"type": "error",
-                           "detail": L("el CLI terminó sin resultado utilizable", "the CLI finished without a usable result")})
+                # Con el texto REAL del CLI: «sin sesión», «sin cuota»… — antes
+                # todo llegaba como «sin resultado utilizable».
+                e = orq_cli.error_de_resultado(resultado)
+                yield sse({"type": "error", "detail": _mensaje_error_orq(e), "codigo": e.codigo})
                 return
             usage_cli = SimpleNamespace(input_tokens=resultado['input_tokens'],
                                         output_tokens=resultado['output_tokens'])

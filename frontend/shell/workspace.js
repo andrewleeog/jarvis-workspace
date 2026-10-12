@@ -617,6 +617,22 @@ function conectarEventosWs() {
       // Y si el banner de update estaba visible, se esconde al toque.
       window.JarvisUpdater?.chequear?.();
       _pingTitulos();
+    } else if (data.type === 'proyecto_atencion') {
+      // Un agente de OTRO proyecto te necesita (core/atencion.py, global). En el
+      // proyecto que mirás ya avisaron sus propios eventos (sonido + aura).
+      const pidA = String(data.project_id);
+      const lista = (_sbAtencionRaw[pidA] || []).filter(x => String(x.terminal_id) !== String(data.terminal_id));
+      _sbAtencionRaw[pidA] = [...lista, data];
+      _sbAplicarAtencion();
+      if (window.JarvisAtencion?.debeAvisar(data, projectId)) {
+        const frase = window.JarvisAtencion.frase(data, _sbT);
+        const ir = () => cambiarProyecto(data.project_id);
+        sonarEventoTarea(data.motivo === 'error' ? 'TASK_ERROR' : 'TASK_BLOCKED');
+        toast(`${data.project_nombre ? data.project_nombre + ' · ' : ''}${frase}`, 'warning', 10000,
+          { accion: { texto: _sbT('Ir'), alHacer: ir } });
+        window.JarvisNotify?.avisar?.({ tipo: data.motivo, nombre: data.terminal_nombre,
+          proyecto: data.project_nombre, sonidoOn: sonidoTareas, alHacer: ir });
+      }
     } else if (data.type === 'proyecto_trabajo') {
       // Anillo VERDE del orbe en la franja: ON mientras el workspace tenga
       // agentes trabajando, OFF al terminar. Señal GLOBAL (agent_watch) → aplica
@@ -1571,6 +1587,7 @@ function renderSidebar() {
     _sbCablearDragDrop(row);
   });
   _sbSyncTrees();
+  _sbAplicarAtencion();   // el rebuild arma filas nuevas: re-marcar sin esperar al poll
 }
 
 // ─── Conmutador Workspaces ⇄ Editor + pane Editor (acordeón) ───────
@@ -2305,6 +2322,28 @@ function _sbPintarBadge(row, count) {
   }
 }
 
+// ─── Atención entre proyectos (core/atencion.py → shared/atencion.js) ───
+// Agentes de OTROS proyectos que esperan respuesta / se bloquearon / fallaron /
+// se quedaron sin cuota: la fila de su proyecto se marca (contador ámbar + la
+// lista en el tooltip). Llega por NIVEL en el poll de /api/projects/working
+// (self-healing) y al instante por el WS global `proyecto_atencion`. El proyecto
+// que estás mirando no se marca: ahí avisan sus propias cards.
+let _sbAtencionRaw = {};   // {pid: [avisos]} tal cual el server (incluye el activo)
+function _sbAplicarAtencion(activoId = projectId) {
+  const A = window.JarvisAtencion;
+  if (!A || !elSidebarNav) return;
+  const marcar = A.porProyecto(_sbAtencionRaw, activoId);
+  elSidebarNav.querySelectorAll('.sb-row').forEach(row => {
+    const lista = marcar[String(row.dataset.id)];
+    if (row.dataset.tituloBase === undefined) row.dataset.tituloBase = row.title || '';
+    const resumen = lista ? A.resumen(lista, _sbT) : '';
+    if (row.classList.contains('atencion') === !!lista && (row.dataset.atenResumen || '') === resumen) return;
+    row.classList.toggle('atencion', !!lista);
+    row.dataset.atenResumen = resumen;
+    row.title = row.dataset.tituloBase + (resumen ? '\n\n' + resumen : '');
+  });
+}
+
 // ─── Context menu (right-click sobre un proyecto) ─────────────────
 
 const _sbCtxMenu = document.getElementById('sb-context-menu');
@@ -2566,6 +2605,7 @@ let _cambioPendiente = null;
 function _sbMarcarActivo(id) {
   document.querySelectorAll('.sb-row').forEach(el =>
     el.classList.toggle('activo', String(el.dataset.id) === String(id)));
+  _sbAplicarAtencion(id);   // el que pasás a mirar deja de marcarse; el que dejás, sí
 }
 
 async function cambiarProyecto(nuevoId) {
@@ -3415,6 +3455,8 @@ async function enviarMensaje(texto, imagenBase64 = null, mediaType = null) {
       else { (chatSesiones[pid] ||= []).push({ rol: 'jarvis', texto: data.response }); }
     }
 
+    if (data?.error_codigo && pid === projectId) _accionErrorChat(data.error_codigo);
+
     // Acciones/terminales — SOLO si seguimos en el MISMO proyecto (si el usuario
     // navegó, el trabajo ya quedó hecho server-side para `pid` y se verá al volver allí).
     if (pid === projectId) {
@@ -3426,7 +3468,10 @@ async function enviarMensaje(texto, imagenBase64 = null, mediaType = null) {
     }
 
   } catch (err) {
-    if (pid === projectId) agregarMensajeChat('jarvis', `Error: ${err.message}`);
+    if (pid === projectId) {
+      agregarMensajeChat('jarvis', `Error: ${err.message}`);
+      if (err.codigo) _accionErrorChat(err.codigo);
+    }
   } finally {
     if (_orchAbort === abort) _orchAbort = null;
     _panel()?.setBusy?.(false);
@@ -3520,7 +3565,7 @@ async function _chatStream(body, pid, signal) {
         done = ev;
       } else if (ev.type === 'error') {
         done = { response: acumulado || ('⚠ ' + _chatT(ev.detail || 'Error')), actions: [],
-                 created_terminals: [], closed_all: false };
+                 created_terminals: [], closed_all: false, error_codigo: ev.codigo || null };
       }
     }
   }
@@ -3539,8 +3584,33 @@ async function _chatNoStream(body) {
   const res = await fetch('/api/orchestrator/chat', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    // El server dice POR QUÉ ({error: codigo, message}): sin sesión, sin cuota…
+    const err = new Error(`HTTP ${res.status}`);
+    try {
+      const d = (await res.json())?.detail;
+      if (typeof d === 'string') err.message = d;
+      else if (d?.message) { err.message = d.message; err.codigo = d.error || null; }
+    } catch {}
+    throw err;
+  }
   return await res.json();
+}
+
+// Falla del motor de Jarvis con remedio conocido → un botón que lleva al remedio
+// (el chat ya mostró el motivo; esto es el «qué hago»). codigo: orq_cli.diagnosticar.
+function _accionErrorChat(codigo) {
+  if (codigo === 'login' || codigo === 'limite') {
+    toast(_sbT(codigo === 'login' ? 'Jarvis necesita una sesión de Claude' : 'La cuenta de Claude llegó a su límite'),
+      'warning', 12000, { accion: { texto: _sbT('Abrir Cuentas'), alHacer: () => window.JarvisSettings?.open?.('cuentas') } });
+  } else if (codigo === 'no_instalado' && window.JarvisCliInstalar?.instalar) {
+    toast(_sbT('Falta el CLI de Claude'), 'warning', 12000,
+      { accion: { texto: _sbT('Instalar'), alHacer: async () => {
+        const CI = window.JarvisCliInstalar;
+        if (!CI.cliPorId('claude')) await CI.refrescar();   // estado de /api/clis aún sin cargar
+        CI.instalar('claude');
+      } } });
+  }
 }
 
 // ─── Grid de terminales ───────────────────────────────────────────
@@ -3877,15 +3947,17 @@ function _pingTitulos() { clearTimeout(_titDeb); _titDeb = setTimeout(_actualiza
 // este poll es la red de seguridad que lo hace confiable al pie de la letra.
 async function _reconciliarAnillos() {
   if (document.hidden) return;
-  let ids, counts;
+  let ids, counts, atencion;
   try {
     const r = await fetch('/api/projects/working');
     if (!r.ok) return;   // backend viejo (404) / server reiniciando → reintenta luego
     const data = await r.json();
     ids = new Set((data.ids || []).map(String));
     counts = data.counts || null;   // null = backend viejo: no tocar los contadores
+    atencion = data.atencion || null;
   } catch { return; }
   for (const p of _sbProyectos) _sbAplicarTrabajo(p.id, ids.has(String(p.id)));
+  if (atencion) { _sbAtencionRaw = atencion; _sbAplicarAtencion(); }
   // Contador de terminales de los OTROS workspaces (mismo NIVEL, mismo poll):
   // sin esto se congelaba en el valor del último GET /api/projects — nada avisa
   // cuando otro workspace abre o cierra terminales, así que quedaba invisible

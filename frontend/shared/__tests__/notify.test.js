@@ -2,7 +2,7 @@
 'use strict';
 const assert = require('assert');
 require('../notify.js');
-const { tituloFlash, debeAvisar, debeOsNotif } = globalThis.JarvisNotify._pure;
+const { tituloFlash, debeAvisar, debeOsNotif, cuerpoAviso } = globalThis.JarvisNotify._pure;
 
 // ── tituloFlash ──
 assert.strictEqual(tituloFlash('Jarvis', 0, true), 'Jarvis', 'sin pendientes: título base');
@@ -23,3 +23,14 @@ assert.strictEqual(debeOsNotif({ permiso: 'default', osOptIn: true }), false, 's
 assert.strictEqual(debeOsNotif({ permiso: 'denied', osOptIn: true }), false);
 
 console.log('notify: OK');
+
+// Texto de la notificación del SO: por tipo, y con el proyecto cuando es de otro
+assert.strictEqual(cuerpoAviso({ tipo: 'termino', nombre: 'Backend' }), 'Backend terminó');
+assert.strictEqual(cuerpoAviso({ tipo: 'espera', nombre: 'Backend' }), 'Backend espera respuesta');
+assert.strictEqual(cuerpoAviso({ tipo: 'limite', nombre: 'Backend', proyecto: 'Tienda' }),
+  'Tienda · Backend se quedó sin cuota de uso');
+assert.strictEqual(cuerpoAviso({ tipo: 'error' }), 'Un agente terminó con error');
+assert.strictEqual(cuerpoAviso({ tipo: 'bloqueado', nombre: 'B' }, (s) => s === '{n} se bloqueó' ? '{n} is blocked' : s),
+  'B is blocked');
+console.log('notify cuerpoAviso OK');
+

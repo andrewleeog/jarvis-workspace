@@ -489,6 +489,21 @@ body.jw-rail .sb-snake { left: 50%; transform: translate(-50%, -50%); }   /* fig
 .sb-row.status-work .sb-row-count, .sb-row.status-run .sb-row-count {
   color: var(--ob-run); border-color: color-mix(in oklch, var(--ob-run) 26%, transparent);
   background: color-mix(in oklch, var(--ob-run) 11%, transparent); }
+/* Atención (core/atencion.py): un agente de ESTE proyecto espera respuesta, se
+   bloqueó, falló o se quedó sin cuota — y estás mirando otro. Gana al verde de
+   «trabajando»: es lo que te necesita. En riel (contador oculto) queda un punto. */
+.sb-row.atencion .sb-row-count {
+  color: var(--ob-work); border-color: color-mix(in oklch, var(--ob-work) 70%, transparent);
+  background: color-mix(in oklch, var(--ob-work) 26%, transparent);
+  animation: sb-aten 1.8s ease-out infinite; }
+/* Pulso de HALO (no de opacidad): la píldora nunca se apaga, el anillo late. */
+@keyframes sb-aten {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklch, var(--ob-work) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 5px color-mix(in oklch, var(--ob-work) 0%, transparent); } }
+body.jw-rail .sb-row.atencion:not(.drop-below)::after { content: ''; position: absolute; top: 4px; right: 4px;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--ob-work);
+  box-shadow: 0 0 0 2px var(--sb-bg-1); }
+@media (prefers-reduced-motion: reduce) { .sb-row.atencion .sb-row-count { animation: none; } }
 .sb-row-x { position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
   width: 20px; height: 20px; display: none; align-items: center; justify-content: center;
   border: 0; border-radius: 6px; background: var(--ob-bg-3); color: var(--ob-fg-2); cursor: pointer; }
