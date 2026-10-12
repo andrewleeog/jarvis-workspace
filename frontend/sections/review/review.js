@@ -97,13 +97,13 @@
         grupos.push({
           id: 'ag' + ag.terminal_id,
           nombre: ag.nombre || `${_L('Agente', 'Agent')} ${ag.terminal_id}`,
-          archivos: (ag.archivos || []).map(f => ({ path: f.path, diff: f.diff })),
+          archivos: (ag.archivos || []).map(f => ({ path: f.path, diff: f.diff, tambien: f.tambien || [] })),
         });
       }
       if ((_byAgent.sin_atribuir || []).length) {
         grupos.push({
           id: 'sin', nombre: _L('Sin atribuir', 'Unattributed'),
-          archivos: (_byAgent.sin_atribuir || []).map(f => ({ path: f.path, diff: f.diff })),
+          archivos: (_byAgent.sin_atribuir || []).map(f => ({ path: f.path, diff: f.diff, tambien: f.tambien || [] })),
         });
       }
     } else {
@@ -196,6 +196,9 @@
           `<input type="checkbox" class="rv-check" data-path="${escAttr(f.path)}"${marcado} aria-label="${_L('Seleccionar', 'Select')}">` +
           `<span class="rv-estado ${esc(st.estado)}">${esc(st.estado)}</span>` +
           `<span class="rv-path">&lrm;${esc(f.path)}</span>` +
+          ((f.tambien || []).length
+            ? `<span class="rv-tambien" title="${escAttr(_L('Otro agente también tiene cambios sin commitear acá. El commit del grupo sube solo los de este agente.', 'Another agent also has uncommitted changes here. The group commit only takes this agent\'s.') + ' (' + f.tambien.join(', ') + ')')}">+ ${esc(f.tambien.join(', '))}</span>`
+            : '') +
           (() => {
             const s = _RG()?.statTexto(st.mas, st.menos);
             return s
@@ -379,6 +382,17 @@
   }
 
   // ── Commit ──────────────────────────────────────────────────────────
+  // Si TODO lo seleccionado es de un mismo agente, el commit va "por agente":
+  // el server sube solo SUS hunks en archivos que otro también tocó.
+  function _agenteDeSeleccion() {
+    const grupos = (_byAgent?.agentes || []);
+    for (const g of grupos) {
+      const suyos = new Set((g.archivos || []).map(f => f.path));
+      if (_selected.size && [..._selected].every(p => suyos.has(p))) return g.terminal_id;
+    }
+    return null;
+  }
+
   async function _commit() {
     const inp = $('#rv-msg');
     const btn = $('#rv-commit');
@@ -391,14 +405,22 @@
     if (!_selected.size) return;
     if (btn) btn.disabled = true;
     try {
+      const agente = _agenteDeSeleccion();
       const r = await fetch(`/api/projects/${_projectId}/review/commit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ archivos: [..._selected], mensaje: msg }),
+        body: JSON.stringify(Object.assign({ archivos: [..._selected], mensaje: msg },
+          agente != null ? { agente } : {})),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.ok === false) throw new Error(_errMsg(d.error ? d : Object.assign({ message: `HTTP ${r.status}` }, d)));
-      toast(_L('Commiteado', 'Committed') + (d.commit ? ' ' + d.commit : ''), 'ok');
+      toast(_L('Commiteado', 'Committed') + (d.commit ? ' ' + d.commit : '') +
+        ((d.por_hunk || []).length
+          ? _L(` · de ${d.por_hunk.join(', ')} solo los cambios de este agente`, ` · only this agent's changes from ${d.por_hunk.join(', ')}`)
+          : ''), 'ok', 6000);
+      if ((d.omitidos || []).length) {
+        toast(_L('Quedaron afuera: ', 'Left out: ') + d.omitidos.map(o => `${o.path} (${o.motivo})`).join('; '), 'warning', 9000);
+      }
       _selected.clear();
       _activo = null;
       if (inp) inp.value = '';
