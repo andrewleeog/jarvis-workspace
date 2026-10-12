@@ -53,3 +53,24 @@ def test_plantilla_unraid_valida():
     assert destinos['PUID'] == '99' and destinos['PGID'] == '100'
     for ruta in ('/app/data', '/home/jarvis', '/proyectos', '3000'):
         assert ruta in destinos, ruta
+
+
+def test_la_pagina_del_paquete_dice_que_se_descarga():
+    """ghcr.io: una sola imagen (sin la atestación que GitHub listaba como una
+    plataforma «unknown/unknown») y una descripción que dice qué es y cómo se
+    arranca — texto plano, ≤512 caracteres (tope de GitHub)."""
+    wf = _leer('.github', 'workflows', 'docker.yml')
+    publicar = wf[wf.index('- name: Publish'):]
+    assert re.search(r'^\s*provenance:\s*false\s*$', publicar, re.M)
+    assert 'annotations: ${{ steps.meta.outputs.annotations }}' in publicar
+    assert 'org.opencontainers.image.description=${{ env.DESCRIPCION }}' in wf
+    bloque = wf[wf.index('DESCRIPCION: >-'):].splitlines()[1:]
+    lineas = []
+    for l in bloque:
+        if not l.startswith(' ' * 8):
+            break
+        lineas.append(l.strip())
+    desc = ' '.join(lineas)
+    assert 0 < len(desc) <= 512, len(desc)
+    assert 'docker compose up -d' in desc and '?token=' in desc and 'x86_64' in desc
+    assert '<' not in desc and '`' not in desc          # texto plano
