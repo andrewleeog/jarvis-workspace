@@ -30,12 +30,13 @@ event loop es sacarlo a un thread (`asyncio.to_thread`), NUNCA cambiar de API.
 Ver CLAUDE.md § "subprocess.run vs asyncio para tmux/git".
 """
 import asyncio
+import os
 import subprocess
 import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Tuple
 
 # Timeout de pared para los comandos de control. Un server tmux trabado (socket
 # colgado tras un crash) sin esto congela al handler que lo llama; con esto se
@@ -60,7 +61,13 @@ class EspecSesion:
     env: Dict[str, str] = field(default_factory=dict)
     # Entorno del PROCESO que lanza la sesión (hoy `_env_terminal()`: sin
     # ANTHROPIC_API_KEY para que los agentes usen sus propias credenciales).
+    # OJO: en tmux solo vale si este `new-session` ARRANCA el server; con el
+    # server ya vivo, el pane hereda el entorno GLOBAL del server — por eso lo
+    # que importa va en `env` (-e) y lo que no debe llegar, en `quitar_env`.
     entorno_proceso: Optional[Dict[str, str]] = None
+    # Variables que NO deben llegar al pane aunque el server tmux las tenga en su
+    # entorno global (lo arrancó otra sesión de Claude Code, un shell con la key…).
+    quitar_env: Tuple[str, ...] = ()
     cols: int = 220
     rows: int = 50
 
@@ -283,8 +290,7 @@ class TmuxBackend(TerminalBackend):
                 '-x', str(espec.cols), '-y', str(espec.rows)]
         for clave, valor in espec.env.items():
             argv += ['-e', f'{clave}={valor}']
-        if espec.comando:
-            argv.append(espec.comando)
+        argv += self._comando_pane(espec)
 
         r = subprocess.run(
             argv, capture_output=True, text=True,
@@ -427,6 +433,50 @@ class TmuxBackend(TerminalBackend):
         except Exception:
             return None
         return r.stdout.strip() if r.returncode == 0 else None
+
+    # ── entorno del pane ─────────────────────────────────────────────────
+    def _entorno_global(self) -> Optional[Set[str]]:
+        """Nombres del entorno GLOBAL del server tmux (lo que hereda cada pane
+        nuevo). None = no hay server: el `new-session` lo arranca con el entorno
+        del proceso, que ya viene limpio."""
+        try:
+            r = subprocess.run(['tmux', 'show-environment', '-g'],
+                               capture_output=True, text=True, timeout=TIMEOUT_CONTROL)
+        except Exception:
+            return None
+        if r.returncode != 0:
+            return None
+        return {l.split('=', 1)[0] for l in r.stdout.splitlines()
+                if '=' in l and not l.startswith('-')}
+
+    def _shell_por_defecto(self) -> str:
+        """El shell que tmux abriría en un pane (`default-shell`)."""
+        try:
+            r = subprocess.run(['tmux', 'show-options', '-gv', 'default-shell'],
+                               capture_output=True, text=True, timeout=TIMEOUT_CONTROL)
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        except Exception:
+            pass
+        return os.environ.get('SHELL') or '/bin/sh'
+
+    def _comando_pane(self, espec: EspecSesion) -> list:
+        """Lo que va al final de `new-session`. Si el server tmux ya trae en su
+        entorno global algo de `quitar_env` (ANTHROPIC_API_KEY, las marcas de
+        sesión de Claude Code), el pane arranca con `env -u …` delante — en
+        forma argv (tmux la ejecuta directo, sin shell intermedio): vale igual
+        con bash, zsh o fish. Sin nada que quitar, exactamente como siempre."""
+        sucias = []
+        if espec.quitar_env:
+            globales = self._entorno_global() or set()
+            sucias = [v for v in espec.quitar_env if v in globales]
+        if not sucias:
+            return [espec.comando] if espec.comando else []
+        shell = self._shell_por_defecto()
+        quitar = [x for v in sucias for x in ('-u', v)]
+        if espec.comando:
+            return ['env', *quitar, shell, '-c', espec.comando]
+        return ['env', *quitar, shell, '-l']   # el shell de login que tmux abriría
 
     # ── repintado ────────────────────────────────────────────────────────
     async def refrescar(self, terminal_id: int) -> None:

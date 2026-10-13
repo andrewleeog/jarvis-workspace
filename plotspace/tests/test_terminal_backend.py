@@ -156,6 +156,58 @@ def test_crear_devuelve_false_si_tmux_falla(monkeypatch, tmp_path):
     assert TmuxBackend().crear(EspecSesion(terminal_id=11, cwd=str(tmp_path))) is False
 
 
+# ── entorno heredado del server tmux ─────────────────────────────────────
+# Con el server tmux ya vivo, el pane hereda el entorno GLOBAL del server, no
+# el del proceso que crea la sesión. Si ese server lo arrancó una sesión de
+# Claude Code (o un shell con NO_COLOR), los claude del workspace nacían grises
+# y "sesión hija" de otra. `quitar_env` lo corta en el pane con `env -u`.
+
+_GLOBAL_SUCIO = ('PATH=/usr/bin\nCLAUDE_CODE_CHILD_SESSION=1\nNO_COLOR=1\n'
+                 '-FORCE_COLOR\nHOME=/root\n')
+_QUITAR = ('ANTHROPIC_API_KEY', 'CLAUDE_CODE_CHILD_SESSION', 'NO_COLOR', 'FORCE_COLOR')
+
+
+def test_crear_sin_server_tmux_deja_el_comando_tal_cual(monkeypatch, tmp_path):
+    # Sin server, el new-session lo ARRANCA con el entorno del proceso (que ya
+    # viene limpio): no hace falta envolver nada.
+    f = _fake(monkeypatch, {'has-session': (1, ''), 'show-environment': (1, 'no server running')})
+    TmuxBackend().crear(EspecSesion(terminal_id=12, cwd=str(tmp_path), comando='claude',
+                                    quitar_env=_QUITAR))
+    assert f.argv_con('new-session')[-1] == 'claude'
+
+
+def test_crear_con_server_sucio_quita_las_vars_del_comando(monkeypatch, tmp_path):
+    f = _fake(monkeypatch, {'has-session': (1, ''), 'show-environment': (0, _GLOBAL_SUCIO),
+                            'default-shell': (0, '/usr/bin/zsh\n')})
+    TmuxBackend().crear(EspecSesion(terminal_id=13, cwd=str(tmp_path), comando='claude; exec bash -l',
+                                    quitar_env=_QUITAR))
+    argv = f.argv_con('new-session')
+    # Solo lo que el server tiene de verdad (`-FORCE_COLOR` = ya quitada en
+    # tmux; ANTHROPIC_API_KEY no está): un `-u` de más no rompe, pero es ruido.
+    # El comando sigue entero detrás de `-c` — partirlo cambia su significado.
+    assert argv[-8:] == ['env', '-u', 'CLAUDE_CODE_CHILD_SESSION', '-u', 'NO_COLOR',
+                         '/usr/bin/zsh', '-c', 'claude; exec bash -l'], argv
+
+
+def test_crear_con_server_sucio_y_sin_comando_abre_shell_de_login(monkeypatch, tmp_path):
+    # Arranque VISIBLE: sin comando tmux abriría el shell de login; con el
+    # entorno a limpiar se abre ESE mismo shell, de login, vía `env -u`.
+    f = _fake(monkeypatch, {'has-session': (1, ''), 'show-environment': (0, _GLOBAL_SUCIO),
+                            'default-shell': (0, '/bin/bash\n')})
+    TmuxBackend().crear(EspecSesion(terminal_id=14, cwd=str(tmp_path), quitar_env=_QUITAR))
+    argv = f.argv_con('new-session')
+    assert argv[-7:] == ['env', '-u', 'CLAUDE_CODE_CHILD_SESSION', '-u', 'NO_COLOR',
+                         '/bin/bash', '-l'], argv
+
+
+def test_crear_sin_quitar_env_no_consulta_el_server(monkeypatch, tmp_path):
+    # Sin nada que quitar no se paga un fork de más por creación.
+    f = _fake(monkeypatch, {'has-session': (1, '')})
+    TmuxBackend().crear(EspecSesion(terminal_id=15, cwd=str(tmp_path), comando='claude'))
+    assert not f.hubo('show-environment')
+    assert f.argv_con('new-session')[-1] == 'claude'
+
+
 # ── muerte ───────────────────────────────────────────────────────────────
 
 def test_matar_usa_target_exacto(monkeypatch):
