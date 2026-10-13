@@ -78,22 +78,40 @@ def _linea_es_keyword(linea: str, kw: str) -> bool:
     return bool(_KW_SOLO_RE[kw].match(clean))
 
 
+# Lo que NUNCA debe llegar a un pane: la key de la API (los agentes usan sus
+# propias credenciales), las marcas de IDENTIDAD de sesión de Claude Code — si
+# el server o el tmux los arrancó una sesión de claude (un dev, un agente), los
+# claude del workspace nacían creyéndose sesión HIJA de esa otra ("Transcript
+# saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker", 2026-08-02) — y
+# lo que APAGA el color de las CLIs: con NO_COLOR, FORCE_COLOR=0,
+# NODE_DISABLE_COLORS o CI en el entorno heredado Claude Code se pinta todo gris
+# (medido 2026-10-13: 55 → 17 secuencias de color). Quien quiera NO_COLOR a
+# propósito lo exporta en su ~/.bashrc: el shell del pane lo vuelve a leer.
+_VARS_FUERA_DEL_PANE = ('ANTHROPIC_API_KEY',
+                        'CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION',
+                        'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_EXECPATH',
+                        'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_SSE_PORT',
+                        'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_PID',
+                        'CLAUDE_EFFORT', 'AI_AGENT', 'TRACEPARENT',
+                        'NO_COLOR', 'FORCE_COLOR', 'NODE_DISABLE_COLORS', 'CI')
+
+
 def _env_terminal() -> dict:
     """Entorno para procesos PTY/tmux: sin ANTHROPIC_API_KEY, con colores."""
     env = os.environ.copy()
-    env.pop('ANTHROPIC_API_KEY', None)
-    # Marcas de IDENTIDAD de sesión de Claude Code: si el server lo arrancó una
-    # sesión de claude (un dev, un agente), viajan uvicorn → motor → terminal y
-    # los claude del workspace nacen creyéndose sesión HIJA de esa otra
-    # ("Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker",
-    # 2026-08-02). Se sellan ANTES de los knobs de config, que van más abajo.
-    for marca in ('CLAUDECODE', 'CLAUDE_CODE_CHILD_SESSION',
-                  'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_EXECPATH',
-                  'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_SSE_PORT',
-                  'CLAUDE_PID', 'CLAUDE_EFFORT'):
-        env.pop(marca, None)
+    for var in _VARS_FUERA_DEL_PANE:
+        env.pop(var, None)
     env['TERM'] = 'xterm-256color'
-    env['COLORTERM'] = 'truecolor'
+    env.update(_env_sesion())
+    return env
+
+
+def _env_sesion() -> dict:
+    """Lo que el PANE tiene que tener sí o sí. Va como `-e` de la sesión tmux:
+    con el server tmux ya vivo, el pane hereda el entorno GLOBAL del server, no
+    el del proceso que crea la sesión — sin `-e`, un tmux arrancado por otro
+    proceso dejaba a Claude Code sin COLORTERM (todo gris) y sin estos ajustes."""
+    env = {'COLORTERM': 'truecolor'}
     # Prompt suggestions (ghost text) de Claude Code APAGADAS (pedido del usuario
     # 2026-07-02): el mensaje sugerido agranda el cuadro de input con texto que él
     # no puso. Var verificada contra el binario 2.1.198 + docs oficiales; solo
@@ -840,24 +858,11 @@ def _crear_sesion_tmux_sync(terminal_id: int, cwd: str, comando_cli: Optional[st
 
     # Variables del ENTORNO DE SESIÓN. Son decisiones de PRODUCTO (qué CLI, qué
     # cuenta, qué modo de render) — el motor solo las recibe y las aplica como
-    # sepa (en tmux, un `-e` por cada una).
-    entorno: dict = {}
-
-    # Claude Code en modo FULLSCREEN (CLAUDE_CODE_NO_FLICKER=1, v2.1.89+): el
-    # transcript vive contenido en alt-screen y NADA cae al scrollback — mata
-    # el "texto multiplicado/cortado" del resize inline (video del usuario
-    # 2026-07-02; el detalle del trade-off está en _env_terminal, que también
-    # exporta la var). El `-e` la fija en el ENV DE SESIÓN: cubre `claude`
-    # tipeado a mano en un Shell aunque el server tmux ya existiera (el env del
-    # proceso new-session solo llega al server la primera vez). El viejo
-    # CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 (inline forzado) se RETIRA: era
-    # justamente lo que dejaba caer el transcript al scrollback.
-    if os.environ.get('JARVIS_CLAUDE_FULLSCREEN', 'on').lower() != 'off':
-        entorno['CLAUDE_CODE_NO_FLICKER'] = '1'
-        # Y full-repaint del alt-screen (freeze + regiones negras al scrollear
-        # transcripts gigantes — mismo criterio y evidencia que en _env_terminal).
-        if os.environ.get('JARVIS_CLAUDE_FULL_REPAINT', 'on').lower() != 'off':
-            entorno['CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT'] = '1'
+    # sepa (en tmux, un `-e` por cada una). La base es `_env_sesion()` (colores +
+    # knobs de Claude Code: fullscreen, full-repaint, sin prompt suggestions):
+    # con `-e` llegan aunque el server tmux ya existiera (el env del proceso
+    # new-session solo llega al server la primera vez).
+    entorno: dict = _env_sesion()
 
     # Identidad de la terminal para el SessionStart hook de claude: le dice al
     # hook a qué terminal pertenece la sesión (JARVIS_TERMINAL_ID) y a dónde
@@ -933,6 +938,7 @@ def _crear_sesion_tmux_sync(terminal_id: int, cwd: str, comando_cli: Optional[st
     if not motor_terminales().crear(EspecSesion(
         terminal_id=terminal_id, cwd=cwd_real, comando=comando,
         env=entorno, entorno_proceso=_env_terminal(),
+        quitar_env=_VARS_FUERA_DEL_PANE,
     )):
         return
 

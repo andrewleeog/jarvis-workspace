@@ -467,6 +467,10 @@ function crearTerminal(containerId, terminalId, tipoIa = 'manual', intentoAuto =
 
   // `archivo:línea` de la salida de los agentes → editor de Jarvis en esa línea.
   _wireLinksArchivo(term);
+  // Las consultas de terminal (DA, posición del cursor, colores…) las contesta
+  // tmux: si xterm también contestaba, su respuesta llegaba a la CLI como tipeo
+  // (la letra suelta en el input de Claude Code). Ver terminal-consultas.js.
+  window.TerminalConsultas?.silenciar?.(term);
 
   // Blindaje anti "terminal NEGRA hasta scrollear": el repintado de xterm vive en
   // UN rAF que se starva bajo carga (terminales ocultas parseando) — si no corre
@@ -1601,6 +1605,8 @@ function crearTerminal(containerId, terminalId, tipoIa = 'manual', intentoAuto =
 
   // Input del usuario → backend; bajar al final para ver lo que escribe
   term.onData(data => {
+    // Red de seguridad: una respuesta automática de terminal nunca es tipeo.
+    if (window.TerminalConsultas?.esRespuestaDeTerminal?.(data)) return;
     if (ws && ws.readyState === WebSocket.OPEN) {
       // Marca el instante del tecleo: el eco que vuelve enseguida se vuelca sin
       // esperar el frame de rAF (ver _agendarFlush / decidirDrenado).
