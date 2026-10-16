@@ -53,7 +53,7 @@
   function crear(deps) {
     deps = deps || {};
     const _lang = deps.lang || (() => {
-      try { return global.JarvisI18n ? global.JarvisI18n.lang() : 'es'; } catch (e) { return 'es'; }
+      try { return global.JarvisI18n ? global.JarvisI18n.lang() : 'en'; } catch (e) { return 'en'; }
     });
     const _fetch = deps.fetch || ((url, opts) => global.fetch(url, opts));
     const cache = {};       // titulo ES normalizado → traducción EN cruda

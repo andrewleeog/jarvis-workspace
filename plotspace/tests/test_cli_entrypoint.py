@@ -76,7 +76,7 @@ def test_si_el_motor_nunca_contesta_no_queda_colgado(monkeypatch, capsys):
     monkeypatch.setattr(urllib.request, 'urlopen',
                         lambda *a, **kw: (_ for _ in ()).throw(OSError('nunca')))
     cli._abrir_cuando_responda('http://127.0.0.1:3000', espera=0.05)
-    assert 'a mano' in capsys.readouterr().out
+    assert 'manually' in capsys.readouterr().out
 
 
 def test_la_raiz_contiene_el_producto():

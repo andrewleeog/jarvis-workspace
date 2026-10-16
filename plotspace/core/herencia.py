@@ -131,7 +131,7 @@ def de_proyecto(project_id, ruta_proyecto, vivos) -> list:
         return calcular(sucios_de(ruta_proyecto),
                         provenance.ediciones(pid=project_id), vivos)
     except Exception as e:
-        print(f'[herencia] no pude calcular la de {project_id}: {e}')
+        print(f'[herencia] failed to compute inheritance for {project_id}: {e}')
         return []
 
 

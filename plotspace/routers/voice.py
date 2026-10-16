@@ -38,7 +38,7 @@ async def _leer_audio_limitado(audio: UploadFile, max_bytes: int | None = None) 
         if total > max_bytes:
             raise HTTPException(
                 status_code=413,
-                detail=f"Audio demasiado grande (>{max_bytes // (1024 * 1024)} MB)",
+                detail=f"Audio too large (>{max_bytes // (1024 * 1024)} MB)",
             )
         chunks.append(chunk)
     return b''.join(chunks)
@@ -136,12 +136,11 @@ def _duracion_wav(path: str):
     except Exception:
         return None
 
-VOZ_PRINCIPAL = "es-PY-TaniaNeural"
-VOZ_FALLBACK  = "es-AR-TomasNeural"
-# Voces en inglés (cuando la UI está en EN) — registro femenino/elegante, coherente
-# con la voz española. Se usan p.ej. en el saludo de bienvenida (/welcome?lang=en).
-VOZ_EN          = "en-GB-SoniaNeural"
-VOZ_EN_FALLBACK = "en-US-AriaNeural"
+VOZ_PRINCIPAL = "en-GB-SoniaNeural"
+VOZ_FALLBACK  = "en-US-AriaNeural"
+# Voces en español, conservadas para el camino lang='es' de /welcome.
+VOZ_ES          = "es-PY-TaniaNeural"
+VOZ_ES_FALLBACK = "es-AR-TomasNeural"
 
 
 # ─── Whisper ──────────────────────────────────────────────────────────────────
@@ -153,13 +152,13 @@ def _warmup_whisper(modelo):
     try:
         import numpy as np
         segmentos, _info = modelo.transcribe(
-            np.zeros(16000, dtype=np.float32), language="es", beam_size=1,
+            np.zeros(16000, dtype=np.float32), language="en", beam_size=1,
             chunk_length=8,   # ventana corta: warmup barato por el mismo camino
         )
         for _ in segmentos:   # el generador es lazy: consumirlo ejecuta la inferencia
             pass
     except Exception as e:
-        print(f"[voice] Warmup de Whisper falló (no crítico): {e}")
+        print(f"[voice] Whisper warmup failed (non-critical): {e}")
 
 
 def _warmup_parakeet(modelo):
@@ -168,9 +167,9 @@ def _warmup_parakeet(modelo):
     dictado real. Nunca crítica."""
     try:
         import numpy as np
-        modelo.recognize(np.zeros(16000, dtype=np.float32), sample_rate=16000, language="es")
+        modelo.recognize(np.zeros(16000, dtype=np.float32), sample_rate=16000, language="en")
     except Exception as e:
-        print(f"[voice] Warmup de parakeet falló (no crítico): {e}")
+        print(f"[voice] parakeet warmup failed (non-critical): {e}")
 
 
 def _cargar_motor_whisper():
@@ -230,7 +229,7 @@ def _inferir_wav(modelo, tmp_wav: str, translate: bool):
             kwargs["chunk_length"] = chunk
         segmentos, _info = modelo.transcribe(tmp_wav, **kwargs)
         return "whisper", "".join(s.text for s in segmentos)
-    return "parakeet", modelo.recognize(tmp_wav, language="es")
+    return "parakeet", modelo.recognize(tmp_wav, language="en")
 
 
 def _worker_habilitado() -> bool:
@@ -377,7 +376,7 @@ async def prewarm():
         try:
             _cargar_whisper()
         except Exception as e:
-            print(f"[voice] Prewarm de Whisper falló: {e}")
+            print(f"[voice] Whisper prewarm failed: {e}")
 
     _whisper_executor.submit(_cargar_seguro)
     return {"estado": "cargando"}
@@ -390,7 +389,7 @@ async def prewarm():
 # que cubre lo que este bias no alcanza — mantener ambas listas en sintonía.
 _VOCABULARIO_DOMINIO = (
     "Jarvis, Claude Code, Codex, Gemini, qwen, opencode, antigravity, tmux, "
-    "terminal, workflow, orquestador, kanban, Web Builder, commit, merge, push, "
+    "terminal, workflow, orchestrator, kanban, Web Builder, commit, merge, push, "
     "branch, deploy, frontend, backend, dashboard, preview, review, localhost."
 )
 
@@ -406,7 +405,7 @@ def _whisper_kwargs(translate: bool) -> dict:
     - OJO: nada de kwargs de openai-whisper acá (`fp16` etc.) — faster-whisper los
       rechaza con TypeError; la precisión se fija al cargar (compute_type)."""
     return {
-        "language": "es",
+        "language": "en",
         "beam_size": 1,
         "temperature": 0.0,
         "condition_on_previous_text": False,
@@ -443,7 +442,7 @@ async def _texto_a_base64(texto: str, voces: list[str] | None = None) -> str:
                 ultimo_error = e
                 continue
         else:
-            raise RuntimeError(f"edge-tts falló con todas las voces: {ultimo_error}")
+            raise RuntimeError(f"edge-tts failed with all voices: {ultimo_error}")
 
         with open(tmp_path, "rb") as f:
             data = f.read()
@@ -460,14 +459,14 @@ async def _texto_a_base64(texto: str, voces: list[str] | None = None) -> str:
 
 class SpeakRequest(BaseModel):
     text: str
-    lang: str = "es"
+    lang: str = "en"
 
 
 class TranslateRequest(BaseModel):
     # `text` = un solo texto (dictado). `texts` = un LOTE (las novedades del
     # modal "Actualizar ahora", los títulos vivos de las cards); presente uno u
-    # otro. `sl` = idioma origen: default 'es'; 'auto' para texto que puede venir
-    # ya en inglés (títulos de pane de Codex/otras CLIs).
+    # otro. `sl` = idioma origen: default 'auto' (detecta; el dictado puede venir
+    # ya en inglés); 'es' para texto que se sabe español.
     text: str | None = None
     texts: list[str] | None = None
     sl: str | None = None
@@ -587,17 +586,16 @@ async def hablar(req: SpeakRequest):
     """
     texto = req.text.strip()
     if not texto:
-        raise HTTPException(status_code=400, detail="Texto vacío")
+        raise HTTPException(status_code=400, detail="Empty text")
 
     voces = None
     if str(req.lang).lower().startswith("en"):
         try:
-            en = await _traducir_es_en(texto)
+            en = await _traducir_es_en(texto, sl="auto")
             if en:
                 texto = en
         except Exception:
             pass  # si la traducción falla, hablamos el original (degradación elegante)
-        voces = [VOZ_EN, VOZ_EN_FALLBACK]
 
     try:
         audio_b64 = await _texto_a_base64(texto, voces)
@@ -613,7 +611,7 @@ async def traducir_texto(req: TranslateRequest):
     (`text`, dictado 'Traducir a inglés') o un LOTE (`texts`, novedades del modal
     'Actualizar ahora' y títulos vivos de las cards — en paralelo, orden
     preservado). `sl='auto'` detecta el idioma origen (allowlist: es|auto)."""
-    sl = req.sl if req.sl in ("es", "auto") else "es"
+    sl = req.sl if req.sl in ("es", "auto") else "auto"
     if req.texts is not None:
         return {"texts": await _traducir_lote(req.texts, sl=sl)}
     texto = (req.text or "").strip()
@@ -622,11 +620,11 @@ async def traducir_texto(req: TranslateRequest):
     try:
         en = await _traducir_es_en(texto, sl=sl)
         if not en:
-            raise RuntimeError("traducción vacía")
+            raise RuntimeError("empty translation")
         return {"text": en}
     except Exception as e:
         print(f"[voice/translate] Error traduciendo: {e}")
-        raise HTTPException(status_code=502, detail="No se pudo traducir")
+        raise HTTPException(status_code=502, detail="Could not translate")
 
 
 class GroqKeyIn(BaseModel):
@@ -662,14 +660,14 @@ def guardar_groq_key(body: GroqKeyIn):
         except OSError:
             pass
     if not escritos:
-        raise HTTPException(status_code=500, detail="No se pudo guardar la clave (sin permiso de escritura)")
+        raise HTTPException(status_code=500, detail="Could not save the key (no write permission)")
     os.environ["GROQ_API_KEY"] = key
     os.environ["STT_MOTOR"] = "groq"
     return {"groq": True, "motor": "groq"}
 
 
 @router.get("/welcome")
-async def bienvenida(lang: str = "es"):
+async def bienvenida(lang: str = "en"):
     """Genera el audio de bienvenida y lo devuelve como base64.
 
     `lang` (es|en) elige el TEXTO y la VOZ, así el saludo HABLADO sigue el idioma
@@ -677,7 +675,7 @@ async def bienvenida(lang: str = "es"):
     """
     en = str(lang).lower().startswith("en")
     texto = "What should we do, sir?" if en else "¿Qué hacemos, señor?"
-    voces = [VOZ_EN, VOZ_EN_FALLBACK] if en else [VOZ_PRINCIPAL, VOZ_FALLBACK]
+    voces = [VOZ_PRINCIPAL, VOZ_FALLBACK] if en else [VOZ_ES, VOZ_ES_FALLBACK]
     try:
         audio_b64 = await _texto_a_base64(texto, voces)
         return {"ok": True, "audio_base64": audio_b64}
@@ -739,7 +737,7 @@ async def transcribir(audio: UploadFile = File(...), translate: bool = Form(Fals
 
     translate=True → Whisper devuelve el dictado traducido a inglés (task=translate)."""
     if not audio:
-        raise HTTPException(status_code=400, detail="No se recibió archivo de audio")
+        raise HTTPException(status_code=400, detail="No audio file received")
 
     # Leer con tope (413 si se pasa) ANTES de tocar disco/ffmpeg.
     contenido = await _leer_audio_limitado(audio)
@@ -757,8 +755,8 @@ async def transcribir(audio: UploadFile = File(...), translate: bool = Form(Fals
                 f.write(contenido)
         except Exception as e:
             # Log server-side, detail genérico (no filtrar errno/rutas al cliente).
-            print(f'[voice] Error guardando audio temporal: {e}')
-            raise HTTPException(status_code=500, detail="No se pudo procesar el audio")
+            print(f'[voice] Error saving temporary audio: {e}')
+            raise HTTPException(status_code=500, detail="Could not process the audio")
 
         try:
             rc, stderr = await _convertir_a_wav(tmp_webm, tmp_wav, _RECORTE)
@@ -774,8 +772,8 @@ async def transcribir(audio: UploadFile = File(...), translate: bool = Form(Fals
             raise
         except Exception as e:
             # Log server-side (incluye stderr de ffmpeg), detail genérico al cliente.
-            print(f'[voice] Error convirtiendo audio con ffmpeg: {e}')
-            raise HTTPException(status_code=500, detail="No se pudo procesar el audio")
+            print(f'[voice] Error converting audio with ffmpeg: {e}')
+            raise HTTPException(status_code=500, detail="Could not process the audio")
 
         # Cortocircuito de silencio: si el recorte dejó el WAV en ~nada, no hay
         # voz que transcribir. Es el caso MÁS común de esta ruta (el fallback a
@@ -797,7 +795,7 @@ async def transcribir(audio: UploadFile = File(...), translate: bool = Form(Fals
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                print(f"[voice] Groq STT falló, fallback al motor local: {e}")
+                print(f"[voice] Groq STT failed, falling back to local engine: {e}")
 
         try:
             global _whisper_ultimo_uso
@@ -837,8 +835,8 @@ async def transcribir(audio: UploadFile = File(...), translate: bool = Form(Fals
             raise
         except Exception as e:
             # Log server-side, detail genérico al cliente.
-            print(f'[voice] Error en transcripción Whisper: {e}')
-            raise HTTPException(status_code=500, detail="No se pudo transcribir el audio")
+            print(f'[voice] Whisper transcription error: {e}')
+            raise HTTPException(status_code=500, detail="Could not transcribe the audio")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 

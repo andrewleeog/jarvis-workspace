@@ -122,7 +122,7 @@ def _push_origen() -> bool:
                            env=entorno_no_interactivo())
         if r.returncode == 0:
             return True
-        print(f"[fe-watch] auto-push falló: {(r.stderr or r.stdout).strip()[-400:]}")
+        print(f"[fe-watch] auto-push failed: {(r.stderr or r.stdout).strip()[-400:]}")
         return False
     except Exception as e:
         print(f'[fe-watch] auto-push error: {e}')

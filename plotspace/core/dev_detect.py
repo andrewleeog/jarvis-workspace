@@ -890,7 +890,7 @@ async def _ciclo():
         if desc:
             desc.discard(url)
         await broadcaster.broadcast(pid, {'type': 'dev_server_caido', 'url': url})
-        print(f"[dev-detect] Caído {url} (proyecto {pid})")
+        print(f"[dev-detect] down {url} (project {pid})")
         if not _detectados.get(pid):
             _detectados.pop(pid, None)
             _descartadas.pop(pid, None)
@@ -941,7 +941,7 @@ async def _ciclo():
                 'terminal_nombre': row['tnombre'],
                 'tipo': 'demo',
             })
-            print(f"[dev-detect] demo {url} detectado en terminal {row['tid']} (proyecto {pid})")
+            print(f"[dev-detect] demo {url} detectado en terminal {row['tid']} (project {pid})")
         # Proyectos Expo: el dev server lo muestra el Mobile Preview (marco de
         # teléfono), NO el Web Preview. No anunciamos dev servers para Expo → el
         # Web Preview no se auto-abre ni aparece su pill (pedido del usuario).
@@ -966,7 +966,7 @@ async def _ciclo():
                 'terminal_id': row['tid'],
                 'terminal_nombre': row['tnombre'],
             })
-            print(f"[dev-detect] {url} detectado en terminal {row['tid']} (proyecto {pid})")
+            print(f"[dev-detect] {url} detectado en terminal {row['tid']} (project {pid})")
 
     # 3. Dev servers que NO imprimieron su URL en un pane rastreado (se
     #    levantaron detached/background: huérfanos bajo /init, subprocesos del
@@ -1020,4 +1020,4 @@ async def _ciclo():
             'terminal_nombre': info['terminal_nombre'],
         })
         print(f"[dev-detect] {url} detectado por puerto LISTEN "
-              f"(pid {lst['pid']}, proyecto {pid})")
+              f"(pid {lst['pid']}, project {pid})")

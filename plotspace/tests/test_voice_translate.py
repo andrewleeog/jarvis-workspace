@@ -18,10 +18,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from plotspace.routers import voice
 
 
-def test_whisper_kwargs_default_es_transcribe():
+def test_whisper_kwargs_default_en_transcribe():
     kw = voice._whisper_kwargs(False)
     assert kw["task"] == "transcribe"
-    assert kw["language"] == "es"
+    assert kw["language"] == "en"
     # Vocabulario del dominio: mejora la jerga técnica del dictado en español.
     assert isinstance(kw["initial_prompt"], str) and "Jarvis" in kw["initial_prompt"]
 
@@ -301,7 +301,7 @@ def test_translate_endpoint_lote_sl_auto(monkeypatch):
     assert visto["sl"] == "auto"
 
 
-def test_translate_endpoint_sl_default_e_invalido_caen_a_es(monkeypatch):
+def test_translate_endpoint_sl_default_e_invalido_caen_a_auto(monkeypatch):
     # Sin sl (dictado, novedades del updater) y con sl basura: se traduce desde
     # español como siempre — el parámetro nuevo no cambia a los callers viejos.
     visto = {"sls": []}
@@ -316,7 +316,7 @@ def test_translate_endpoint_sl_default_e_invalido_caen_a_es(monkeypatch):
     client = TestClient(app)
     assert client.post("/api/voice/translate", json={"text": "hola"}).status_code == 200
     assert client.post("/api/voice/translate", json={"texts": ["hola"], "sl": "xx"}).status_code == 200
-    assert visto["sls"] == ["es", "es"]
+    assert visto["sls"] == ["auto", "auto"]
 
 
 def test_transcribe_limpia_tmp_dir_si_ffmpeg_falla(monkeypatch, tmp_path):

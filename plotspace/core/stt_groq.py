@@ -76,10 +76,10 @@ def upsert_env(path: str, clave: str, valor: str) -> None:
 def armar_form(modelo_nombre: str, prompt: str | None) -> dict:
     """Campos del multipart de transcripción. PURA y testeable.
     temperature=0 = decode determinista (mismo criterio que el motor local);
-    language fijo es: el dictado del workspace es siempre español."""
+    language fijo en: el dictado del workspace es en inglés."""
     form = {
         "model": modelo_nombre,
-        "language": "es",
+        "language": "en",
         "temperature": "0",
         "response_format": "json",
     }

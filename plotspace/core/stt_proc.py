@@ -169,7 +169,7 @@ class WorkerSTT:
                     print(f"[stt-proc] worker STT listo (motor {msg.get('motor')}, "
                           f"pid {proc.pid})")
                 elif ev == 'error_carga':
-                    print(f"[stt-proc] la carga del modelo en el worker falló: "
+                    print(f"[stt-proc] model load in worker failed: "
                           f"{msg.get('error')}")
                 elif 'id' in msg:
                     fut = pendientes.pop(msg['id'], None)
@@ -185,7 +185,7 @@ class WorkerSTT:
                 self._listo = False
             for fut in pendientes.values():
                 if not fut.done():
-                    fut.set_exception(RuntimeError('el worker STT murió'))
+                    fut.set_exception(RuntimeError('the STT worker died'))
             pendientes.clear()
 
     async def transcribir(self, wav: str, translate: bool, timeout: float = 180.0):
@@ -199,7 +199,7 @@ class WorkerSTT:
             # misma generación de worker (asegurar los setea en pareja).
             proc = self._proc
             if proc is None or proc.returncode is not None:
-                raise RuntimeError('no se pudo levantar el worker STT')
+                raise RuntimeError('could not start the STT worker')
             rid = self._prox_id
             self._prox_id += 1
             self._pendientes[rid] = fut
@@ -210,14 +210,14 @@ class WorkerSTT:
                 await proc.stdin.drain()
             except (BrokenPipeError, ConnectionResetError, OSError) as e:
                 self._pendientes.pop(rid, None)
-                raise RuntimeError(f'el worker STT no recibe pedidos: {e}')
+                raise RuntimeError(f'the STT worker is not accepting requests: {e}')
         try:
             msg = await asyncio.wait_for(fut, timeout)
         except asyncio.TimeoutError:
             self._pendientes.pop(rid, None)
-            raise RuntimeError('timeout esperando al worker STT')
+            raise RuntimeError('timeout waiting for the STT worker')
         if not msg.get('ok'):
-            raise RuntimeError(msg.get('error') or 'el worker STT falló')
+            raise RuntimeError(msg.get('error') or 'the STT worker failed')
         return msg.get('motor') or '', (msg.get('texto') or '')
 
     async def terminar(self) -> bool:

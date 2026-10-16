@@ -304,8 +304,8 @@ def _spawn(tipo):
     if resuelto:
         argv[0] = resuelto
     if ptyprocess is None:
-        print('[cli-login] este sistema no tiene PTY de Unix: el login por '
-              'terminal oculta no está disponible acá')
+        print('[cli-login] this system has no Unix PTY: hidden-terminal '
+              'login is not available here')
         return None
     try:
         # Ancho generoso: menos líneas envueltas en los TUIs (la URL de agy mide

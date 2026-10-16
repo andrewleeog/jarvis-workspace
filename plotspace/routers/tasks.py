@@ -76,7 +76,7 @@ def registrar_listener() -> None:
         broadcaster.escuchar(_on_evento)
         _listener_registrado = True
     except Exception as e:           # nunca romper el import del router
-        print(f'[tasks] no se pudo registrar el listener: {e}')
+        print(f'[tasks] could not register the listener: {e}')
 
 
 registrar_listener()
@@ -239,7 +239,7 @@ def _infos(project_id: int, terminales: list) -> dict:
         from plotspace.core import orq_contexto
         return orq_contexto.infos_terminales(project_id, terminales) or {}
     except Exception as e:
-        print(f'[tasks] infos_terminales falló: {e}')
+        print(f'[tasks] infos_terminales failed: {e}')
         return {}
 
 

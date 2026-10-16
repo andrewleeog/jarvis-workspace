@@ -6,8 +6,8 @@
 // de etiqueta mono + contenido, líneas de pelo, cero tarjetas anidadas), valores
 // vivos en el rail y CADA DOMINIO CON LA FORMA DE SU DATO: la tecla de voz como
 // objeto físico, un mapa de teclado real, los 24 temas como espectro con vista
-// previa, un conmutador de cuentas, un rack de extensiones y una consola de
-// memoria.
+// previa, un conmutador de cuentas, un rack de extensiones, una consola de
+// memoria y una línea de tiempo de workflows.
 // El prototipo aprobado y las decisiones (qué NO reintroducir) viven en
 // frontend/preview-settings/AGENTS.md.
 // Expone window.JarvisSettings = { init, onProjectChanged, open, close, isOpen,
@@ -24,7 +24,7 @@
   let _resSel       = -1;     // índice seleccionado en los resultados de búsqueda
 
   // Resumen para los valores vivos del rail (se refresca al abrir).
-  const _res = { cuentas: null, activos: null, memorias: null };
+  const _res = { cuentas: null, activos: null, memorias: null, workflows: null };
 
   const SECCIONES = [
     { grupo: 'general', items: [
@@ -36,6 +36,7 @@
     { grupo: 'proyecto', items: [
       { id: 'skills',    label: 'Extensiones', icon: 'plug' },
       { id: 'memoria',   label: 'Memoria',     icon: 'brain' },
+      { id: 'workflows', label: 'Workflows',   icon: 'workflow' },
     ]},
   ];
 
@@ -44,16 +45,22 @@
     atajos:     { t: 'Teclado',     sub: 'Todo el workspace en un teclado. Tocá una tecla para reasignarla.' },
     apariencia: { t: 'Apariencia',  sub: '24 temas, tonalidad fina e idioma. Se aplica al instante.' },
     cuentas:    { t: 'Cuentas',     sub: 'Varias cuentas por CLI, cambio sin re-loguear.' },
-    skills:     { t: 'Extensiones', sub: 'Plugins de Claude Code y las skills y reglas que lee cada IA.' },
+    skills:     { t: 'Extensiones', sub: 'Plugins activos en este proyecto y skills del repo.' },
     memoria:    { t: 'Memoria',     sub: 'El conocimiento que comparten los agentes: estado y salud.' },
+    workflows:  { t: 'Workflows',   sub: 'Historial de orquestaciones multi-agente.' },
   };
 
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));   // incluye comillas: se usa en atributos;
+  const esc = (s) => String(s ?? '')
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   const _t = (s) => window.JarvisI18n?.t?.(s) ?? s;
-  const num = (n) => Number(n || 0).toLocaleString('es-AR');
+  const num = (n) => Number(n || 0).toLocaleString('en-US');
   const _root = () => document.getElementById('jw-settings');
   const $ = (s) => _root()?.querySelector(s);
   const _itemDe = (id) => SECCIONES.flatMap(g => g.items).find(i => i.id === id);
+  // Los resúmenes de memoria vienen en markdown crudo: se leen como texto.
+  const limpio = (s) => String(s || '')
+    .replace(/^[>\s]*\[[^\]]*\]\s*/, '').replace(/[*_`#>]+/g, '').replace(/\s+/g, ' ').trim();
 
   /* ═══════════════════════════════════════════════════════════
      ARMAZÓN
@@ -163,11 +170,12 @@
       cuentas: _res.cuentas == null ? '' : String(_res.cuentas),
       skills: _res.activos == null ? '' : String(_res.activos),
       memoria: _res.memorias == null ? '' : String(_res.memorias),
+      workflows: _res.workflows == null ? '' : String(_res.workflows),
     };
     _root()?.querySelectorAll('[data-v]').forEach(el => { el.textContent = v[el.dataset.v] ?? ''; });
   }
 
-  // Los números del rail que dependen del server. Livianos y en paralelo.
+  // Los cuatro números del rail que dependen del server. Livianos y en paralelo.
   async function _cargarResumen() {
     const j = async (url) => { const r = await fetch(url); if (!r.ok) throw 0; return r.json(); };
     const pid = _projectId;
@@ -178,28 +186,14 @@
       tareas.push(
         j(`/api/projects/${pid}/plugins/activos`).then(d => { _res.activos = (d.activos || []).length; }),
         j(`/api/projects/${pid}/memory/salud`).then(d => { _res.memorias = d.total || 0; }),
+        j(`/api/orchestrator/workflows/${pid}`).then(d => { _res.workflows = (d || []).length; }),
       );
     }
     await Promise.allSettled(tareas);
     if (_abierta) _pintarValores();
   }
 
-  // "Memoria" no es una página de Configuración: abre el panel de Memoria
-  // directo (antes había una página intermedia con un botón "Abrir"). Lo que
-  // mostraba esa página — pulso, tableros por categoría, recientes, lecciones —
-  // vive ahora en la pestaña Resumen del panel.
-  // Memoria no es una página de ⚙: abre el panel de Memoria y, al cerrarlo,
-  // se vuelve a Configuración en la sección donde estaba el usuario.
-  function _irAMemoria() {
-    const volverA = _seccion && _seccion !== 'memoria' ? _seccion : null;
-    close();
-    // instantaneo: Configuración cierra y Memoria abre en el mismo frame; si Memoria
-    // entrara con fade desde 0 se vería un parpadeo (se va el velo y vuelve).
-    window.JarvisMemory?.abrir?.({ alCerrar: () => open(volverA), instantaneo: true });
-  }
-
   function setSeccion(sec) {
-    if (sec === 'memoria') { _irAMemoria(); return; }
     if (!sec || sec === _seccion) return;
     _seccion = sec;
     _root()?.querySelectorAll('.sx-item').forEach(b => {
@@ -217,11 +211,11 @@
     if (!sheet) return;
     t.textContent = _t(meta.t || '');
     sub.textContent = _t(meta.sub || '');
-    window.JarvisExtensiones?.desmontar?.();
     sheet.innerHTML = '';
     ({
       voz: _renderVoz, atajos: _renderAtajos, apariencia: _renderApariencia,
-      cuentas: _renderCuentas, skills: _renderSkills,
+      cuentas: _renderCuentas, skills: _renderSkills, memoria: _renderMemoria,
+      workflows: _renderWorkflows,
     }[_seccion] || (() => {}))(sheet);
     sheet.classList.remove('sx-in'); void sheet.offsetWidth; sheet.classList.add('sx-in');
     $('#sx-scroll').scrollTop = 0;
@@ -235,8 +229,8 @@
      Con IntersectionObserver no alcanzaba: un salto de scroll (el de la
      búsqueda, una rueda rápida) puede llevar la banda de "asomando abajo" a
      "pegada arriba" sin cruzar ningún umbral, y el estado se perdía.
-     El MutationObserver re-marca lo que llega tarde: cuentas, memoria y
-     extensiones pintan su cuerpo async. */
+     El MutationObserver re-marca lo que llega tarde: cuentas, memoria,
+     extensiones y workflows pintan su cuerpo async. */
   let _obsSheet = null, _obsSheetNodo = null, _bandaRaf = 0;
 
   function _marcarBandas() {
@@ -273,23 +267,22 @@
     const push = (sec, label, extra, key) => idx.push({ sec, label, extra: extra || '', key: key === undefined ? label : key });
     SECCIONES.forEach(g => g.items.forEach(it => push(it.id, it.label, g.grupo, null)));
     (window.JarvisControls?.list?.() || []).forEach(c =>
-      push(c.mode === 'press' ? 'atajos' : 'voz', c.label, 'tecla atajo binding key shortcut'));
+      push(c.mode === 'press' ? 'atajos' : 'voz', c.label, 'tecla atajo binding'));
     _DICTADO_OPTS.forEach(o => push('voz', o.label, o.desc));
-    push('voz', 'Notificaciones del navegador', 'sistema permiso avisos push notifications alerts');
-    push('voz', 'Sonido al terminar tareas', 'acorde agente espera aviso sound chime');
-    push('atajos', 'Atajos del workspace', 'teclado ctrl esc mapa teclas keyboard shortcuts keys');
-    push('apariencia', 'Tema de color', 'paleta oscuro claro acento espectro theme palette dark light accent');
+    push('voz', 'Notificaciones del navegador', 'sistema permiso avisos push');
+    push('voz', 'Sonido al terminar tareas', 'acorde agente espera aviso');
+    push('atajos', 'Atajos del workspace', 'teclado ctrl esc mapa teclas');
+    push('atajos', 'Velocidad de desplazamiento', 'terminal rueda mouse trackpad scroll');
+    push('apariencia', 'Tema de color', 'paleta oscuro claro acento espectro');
     Object.entries(TEMA_META).forEach(([id, [n]]) => push('apariencia', n, `tema ${id}`, 'Tema de color'));
-    push('apariencia', 'Tonalidad', 'matiz saturación profundidad tinte hue saturation depth tint');
-    push('apariencia', 'Escala de la app', 'zoom tamaño agrandar achicar interfaz letra grande size scale font');
+    push('apariencia', 'Tonalidad', 'matiz saturación profundidad tinte');
+    push('apariencia', 'Escala de la app', 'zoom tamaño agrandar achicar interfaz letra grande');
     push('apariencia', 'Idioma de la interfaz', 'español english lang');
-    push('apariencia', 'Liquid Glass', 'vidrio translúcido transparencia material glass blur translucent');
-    push('apariencia', 'Fondo personalizado', 'fondo wallpaper imagen background blur desenfoque opacidad transparencia glass vidrio velo saturación', 'Fondo');
     push('apariencia', 'Auto-iniciar el preview móvil', 'expo metro mobile');
-    push('cuentas', 'Conectar cuenta nueva', 'login oauth vincular cli account link', null);
-    push('skills', 'Plugins instalados', 'marketplace extensiones claude', null);
-    push('skills', 'Skills e instrucciones', 'skill regla agents.md gemini codex cursor copilot qwen opencode windsurf', null);
-    push('memoria', 'Explorar memoria', 'wikilinks grafo notas salud memory graph notes health');
+    push('cuentas', 'Conectar cuenta nueva', 'login oauth vincular cli', null);
+    push('skills', 'Plugins instalados', 'marketplace extensiones', null);
+    push('memoria', 'Explorar memoria', 'wikilinks grafo notas salud');
+    push('workflows', 'Historial de workflows', 'orquestación pasos agentes', null);
     return idx;
   }
 
@@ -299,10 +292,8 @@
     const pintar = () => {
       const q = input.value.trim().toLowerCase();
       if (!q) { res.hidden = true; res.innerHTML = ''; nav.hidden = false; _resSel = -1; _moverThumb(true); return; }
-      // También contra el label TRADUCIDO: con la interfaz en inglés se busca en inglés.
       const hits = idx.filter(a =>
-        a.label.toLowerCase().includes(q) || _t(a.label).toLowerCase().includes(q)
-        || a.extra.toLowerCase().includes(q)).slice(0, 10);
+        a.label.toLowerCase().includes(q) || a.extra.toLowerCase().includes(q)).slice(0, 10);
       nav.hidden = true; res.hidden = false;
       _resSel = hits.length ? 0 : -1;
       res.innerHTML = hits.length ? hits.map((h, i) => {
@@ -346,7 +337,6 @@
 
   /* ── Abrir / cerrar ── */
   function open(seccion) {
-    if (seccion === 'memoria') { _irAMemoria(); return; }
     if (seccion) _seccion = seccion;
     _prevFocus = document.activeElement;
     _abierta = true;
@@ -360,7 +350,6 @@
 
   function close() {
     _abierta = false;
-    window.JarvisExtensiones?.desmontar?.();
     const root = _root();
     if (root) { root.hidden = true; root.innerHTML = ''; }
     // El DOM de Voz/Atajos se detacha: soltar el callback para no pintar sobre
@@ -377,7 +366,6 @@
     // confirm/prompt). El buscador con texto también se queda su Esc.
     if (e.key === 'Escape'
         && !document.querySelector('#modal-skill-md[style*="flex"]')
-        && !document.querySelector('#jw-settings .ex-drawer.open')
         && !document.querySelector('.cta-alta-overlay')
         && !document.querySelector('.ob-confirm-overlay')) {
       e.preventDefault(); e.stopPropagation(); close();
@@ -458,8 +446,6 @@
         </div>`;
     };
 
-    // Tono/volumen guardados del aviso "terminé" (defaults si no hay módulo ni storage).
-    const _sndPrefs = () => (window.JarvisSonido?.prefs?.() ?? { perfil: 'acorde', vol: 40 });
     const pintar = () => {
       b.innerHTML =
         blk('tecla', 'push-to-talk', pintarTecla(), { key: ptt?.label || 'Hablar' }) +
@@ -477,23 +463,7 @@
             sw('sx-snd', window.JarvisSonido ? window.JarvisSonido.get()
                         : localStorage.getItem('jarvis.sonidoTareas') !== 'off',
                _t('Sonido al terminar tareas')),
-            'Sonido al terminar tareas') +
-          setRow('Tono del aviso',
-            'Tocá uno para elegirlo y oírlo.',
-            `<span class="sn-tonos" role="group" aria-label="${esc(_t('Tono del aviso'))}">${
-              (window.JarvisSonidoFin?.ORDEN || []).map(id => `
-              <button type="button" class="sx-btn sm sn-tono${id === _sndPrefs().perfil ? ' pri' : ''}"
-                      data-tono="${id}" aria-pressed="${id === _sndPrefs().perfil}">${esc(_t(window.JarvisSonidoFin.PERFILES[id].label))}</button>`).join('')
-            }</span>`,
-            'Tono del aviso') +
-          setRow('Volumen del aviso',
-            '',
-            `<span class="sx-slider sn-vol">
-               <input type="range" id="sx-snd-vol" min="${window.JarvisSonidoFin?.VOL_MIN ?? 5}" max="${window.JarvisSonidoFin?.VOL_MAX ?? 100}"
-                      step="5" value="${_sndPrefs().vol}" aria-label="${esc(_t('Volumen del aviso'))}">
-               <output id="sx-snd-vol-o">${_sndPrefs().vol}%</output>
-             </span>`,
-            'Volumen del aviso'),
+            'Sonido al terminar tareas'),
           { key: 'Avisos' });
 
       // Dictado
@@ -523,24 +493,6 @@
           if (notifDesc) notifDesc.textContent = _t('Apagadas — al activarlas el navegador va a pedir permiso.');
         }
       });
-      // Tono y volumen del aviso "terminé": tocar un tono lo elige Y lo reproduce;
-      // el slider suena al soltar (probar en cada pixel del arrastre sería ruido).
-      b.querySelectorAll('.sn-tono').forEach(btn => btn.addEventListener('click', () => {
-        window.JarvisSonido?.setPrefs({ perfil: btn.dataset.tono });
-        b.querySelectorAll('.sn-tono').forEach(x => {
-          const on = x === btn;
-          x.classList.toggle('pri', on);
-          x.setAttribute('aria-pressed', String(on));
-        });
-        window.JarvisSonido?.probar('TASK_DONE');
-      }));
-      const vol = b.querySelector('#sx-snd-vol');
-      const volO = b.querySelector('#sx-snd-vol-o');
-      vol?.addEventListener('input', () => {
-        if (volO) volO.textContent = `${vol.value}%`;
-        window.JarvisSonido?.setPrefs({ vol: vol.value });
-      });
-      vol?.addEventListener('change', () => window.JarvisSonido?.probar('TASK_DONE'));
       // Sonido de eventos de agente (fuente de verdad: window.JarvisSonido)
       const snd = b.querySelector('#sx-snd');
       snd?.addEventListener('change', () => {
@@ -591,9 +543,7 @@
     KeyJ: { mod: 'Ctrl', que: 'Panel → Jarvis' },
     Escape: { mod: null, que: 'Cerrar / salir de pantalla completa' },
   };
-  // En español: se traduce al pintar (_t(a.que), plantilla del dict), así sigue
-  // al idioma aunque se cambie después de cargar el módulo.
-  for (let i = 1; i <= 9; i++) _ATAJOS_FIJOS[`Digit${i}`] = { mod: 'Ctrl', que: `Saltar al proyecto ${i}` };
+  for (let i = 1; i <= 9; i++) _ATAJOS_FIJOS[`Digit${i}`] = { mod: 'Ctrl', que: _t('Saltar al proyecto {i}').replace('{i}', i) };
 
   // El code de teclado del binding, o null si está en un botón del mouse
   // (entonces no hay tecla que iluminar en el mapa).
@@ -623,13 +573,19 @@
     const pintar = () => {
       const A = _atajosVivos();
       const ctrls = window.JarvisControls?.list?.() || [];
+      const flujo = window.TerminalFlow;
+      let velocidad = flujo?.FACTOR_RUEDA ?? 3;
+      try {
+        velocidad = flujo?.normalizarVelocidadRueda?.(
+          localStorage.getItem(flujo?.LS_VELOCIDAD_RUEDA || 'jarvis.terminal.scrollSpeed')) ?? velocidad;
+      } catch (_) {}
       const teclado = `
         <div class="kb">
           ${FILAS.map(f => `<div class="kb-f">${f.map(([code, cap, w]) => {
             const a = A[code];
             return `<button class="kb-k${a ? ' bound' : ''}${a && a.cfg ? ' cfg' : ''}" type="button"
                       style="grid-column: span ${w}" data-code="${code}"
-                      ${a ? `data-que="${esc((a.mod ? a.mod + ' + ' : '') + (cap || _t('espacio')))} — ${esc(_t(a.que))}"` : 'tabindex="-1" aria-hidden="true"'}>
+                      ${a ? `data-que="${esc((a.mod ? a.mod + ' + ' : '') + (cap || 'espacio'))} — ${esc(_t(a.que))}"` : 'tabindex="-1" aria-hidden="true"'}>
                       <span>${esc(cap)}</span>${a && a.mod ? '<i class="kb-mod" aria-hidden="true"></i>' : ''}
                     </button>`;
           }).join('')}</div>`).join('')}
@@ -649,11 +605,26 @@
         </div>`).join('');
 
       const mouseSolo = ctrls.filter(c => !_bindingCode(c.id))
-        .map(c => `<div><span class="kb-chip">${esc(window.JarvisControls.label(c.id))}</span> ${esc(_t(c.label))} — ${esc(_t('es un botón del mouse, por eso no está en el mapa'))}</div>`).join('');
+        .map(c => `<div><span class="kb-chip">${esc(window.JarvisControls.label(c.id))}</span> ${esc(c.label)} — ${esc(_t('es un botón del mouse, por eso no está en el mapa'))}</div>`).join('');
+
+      const scrollTerminal = `
+        <div class="sx-set" data-key="Velocidad de desplazamiento">
+          <div class="sx-set-t">
+            <b>${esc(_t('Velocidad de desplazamiento'))}</b>
+            <span>${esc(_t('Ajusta cuánto avanza la rueda o el trackpad dentro de las terminales.'))}</span>
+          </div>
+          <span class="sx-slider kb-scroll">
+            <input type="range" id="kb-scroll-speed"
+                   min="${flujo?.FACTOR_RUEDA_MIN ?? 1}" max="${flujo?.FACTOR_RUEDA_MAX ?? 6}"
+                   step="1" value="${velocidad}" aria-label="${esc(_t('Velocidad de desplazamiento'))}">
+            <output id="kb-scroll-speed-o">${velocidad}×</output>
+          </span>
+        </div>`;
 
       b.innerHTML =
         blk('mapa', 'lo iluminado está ocupado', teclado, { wide: true, key: 'Atajos del workspace' }) +
         (reasignar ? blk('reasignar', 'los que cambiás', reasignar, { key: 'Atajos configurables' }) : '') +
+        blk('terminal', 'rueda y trackpad', scrollTerminal, { key: 'Velocidad de desplazamiento' }) +
         blk('sin tecla', 'mouse y combinaciones', `
           <div class="kb-otros">
             ${mouseSolo}
@@ -679,6 +650,15 @@
         x.addEventListener('click', () => window.JarvisControls?.capturar?.(x.dataset.id)));
       b.querySelectorAll('.kb-reset').forEach(x =>
         x.addEventListener('click', () => { window.JarvisControls?.reset?.(x.dataset.id); pintar(); _pintarValores(); }));
+      const scroll = b.querySelector('#kb-scroll-speed');
+      const scrollOut = b.querySelector('#kb-scroll-speed-o');
+      scroll?.addEventListener('input', () => {
+        const valor = flujo?.normalizarVelocidadRueda?.(scroll.value) ?? Number(scroll.value);
+        const clave = flujo?.LS_VELOCIDAD_RUEDA || 'jarvis.terminal.scrollSpeed';
+        try { localStorage.setItem(clave, String(valor)); } catch (_) {}
+        if (scrollOut) scrollOut.textContent = `${valor}×`;
+        window.dispatchEvent(new CustomEvent('jarvis:terminal-scroll-speed', { detail: valor }));
+      });
     };
     // Asignación plana: cada visita reemplaza el callback anterior.
     window.JarvisControls && (window.JarvisControls.onCambio = () => { pintar(); _pintarValores(); });
@@ -739,7 +719,7 @@
     const act = _temaActual();
     const temas = ORDEN_TEMAS.filter(t => (window.JarvisThemes?.TEMAS || ORDEN_TEMAS).includes(t));
     const tinte = window.JarvisThemes?.tinte?.() || { matiz: 0, saturacion: 100, profundidad: 0 };
-    const idioma = window.JarvisI18n?.lang?.() || 'es';
+    const idioma = window.JarvisI18n?.lang?.() || 'en';
 
     const espectro = `
       <div class="ap-spec" id="ap-spec" role="radiogroup" aria-label="${esc(_t('Tema de color'))}">
@@ -810,18 +790,11 @@
              <button type="button" data-l="es" class="${idioma === 'es' ? 'on' : ''}">Español</button>
              <button type="button" data-l="en" class="${idioma === 'en' ? 'on' : ''}">English</button>
            </div>`, 'Idioma de la interfaz') +
-        setRow('Liquid Glass',
-          'Material de vidrio translúcido en barras, paneles, modales y botones. Apagado: superficies sólidas.',
-          sw('ap-glass', (window.JarvisGlass?.actual?.() ?? 'on') === 'on', 'Liquid Glass'),
-          'Liquid Glass') +
         setRow('Auto-iniciar el preview móvil',
           'En proyectos Expo, abre la pestaña móvil cuando detecta el Metro que levantó el agente.',
           sw('ap-mob', localStorage.getItem('jarvis.autoMobilePreview') !== '0', _t('Auto-iniciar el preview móvil')),
           'Auto-iniciar el preview móvil'),
-        { key: 'Interfaz' }) +
-      // Fondo del modo Glass: bloque propio (fondo-ui.js), justo debajo del interruptor de Liquid Glass.
-      blk('fondo', 'imagen detrás del vidrio', '<div id="ap-fondo"></div>', { wide: true, key: 'Fondo' });
-    window.JarvisFondoUI?.montar(b.querySelector('#ap-fondo'), { icon });
+        { key: 'Interfaz' });
 
     // ── Espectro: hover = previsualizar en el banco, click = elegir (y ahí se
     //    despliega). Previsualizar NO toca el data-theme del documento: pisa las
@@ -917,8 +890,6 @@
       b.querySelectorAll('#ap-lang button').forEach(x => x.classList.toggle('on', x === btn));
       window.JarvisI18n?.setLang?.(btn.dataset.l);
     });
-    b.querySelector('#ap-glass')?.addEventListener('change', (e) =>
-      window.JarvisGlass?.aplicar(e.target.checked ? 'on' : 'off'));
     b.querySelector('#ap-mob').addEventListener('change', (e) =>
       localStorage.setItem('jarvis.autoMobilePreview', e.target.checked ? '1' : '0'));
   }
@@ -943,8 +914,6 @@
     let _abiertaId = null;   // detalle desplegado (cli:id)
     let _verMail = false;    // el correo arranca enmascarado; el ojo lo revela
     let _clis = [];
-    let _uso = null;         // {account_id: uso} de /api/cuentas/uso (claude/codex)
-    const U = window.JarvisUsoCuentas;
 
     b.innerHTML = blk('conmutador', 'cargando…', `<div class="cta-cuerpo" id="cta-cuerpo">
         <div class="cta-cargando">${icon('loader', 15)} ${esc(_t('Cargando cuentas…'))}</div></div>`,
@@ -1130,7 +1099,6 @@
                       title="${a.activa ? esc(_t('En uso — ver detalle')) : esc(_t('Cambiar a esta cuenta'))}">
                 ${a.activa ? '<i class="ct-dot" aria-hidden="true"></i>' : ''}
                 <span>${esc(a.label || _t('Sin nombre'))}</span>
-                ${!a.activa && _uso && U ? U.htmlChip(_uso[String(a.id)]) : ''}
               </button>`).join('')}
             ${c.home_sin_guardar
               ? `<button class="ct-chip guardar" type="button" data-act="vincular" data-tipo="${esc(c.tipo)}"
@@ -1142,7 +1110,6 @@
             </button>
           </span>
         </div>
-        ${_bloqueUso(c)}
         ${abierta ? `
           <div class="ct-det">
             <dl>
@@ -1166,22 +1133,6 @@
             </div>
           </div>` : ''}
       </section>`;
-    }
-
-    // Barras de uso de la cuenta EN USO (solo CLIs que exponen su cupo).
-    function _bloqueUso(c) {
-      if (!U || !['claude', 'codex'].includes(c.tipo)) return '';
-      const activa = (c.cuentas || []).find(a => a.activa);
-      if (!activa) return '';
-      return U.htmlBloque(_uso ? (_uso[String(activa.id)] || { estado: 'sin_credencial' }) : null, { icon });
-    }
-
-    async function _cargarUso(refrescar = false) {
-      try {
-        const d = await _ctaFetch(`/api/cuentas/uso${refrescar ? '?refrescar=1' : ''}`);
-        _uso = (d && d.cuentas) || {};
-      } catch { _uso = {}; }
-      if (b.isConnected) pintar();
     }
 
     function pintar() {
@@ -1211,61 +1162,20 @@
       if (etiqueta) etiqueta.textContent = `${total} ${total === 1 ? _t('cuenta') : _t('cuentas')} · ${conCuentas.length}/${_clis.length} CLIs`;
 
       cuerpo.innerHTML = `<div class="ct-wrap">${conCuentas.map(_filaCli).join('')}${dormidos}</div>
-        <p class="ct-pie">${esc(_t('Tocá una cuenta para pasarte a ella al instante — no hay que volver a loguearse. La que está en uso abre su detalle.'))}</p>
-        <div class="ct-diag-w">
-          <button class="sx-btn gho sm" type="button" data-act="diag">${esc(_t('¿No aparece tu cuenta? Diagnosticar'))}</button>
-          <pre class="ct-diag sx-mono" id="ct-diag" hidden></pre>
-        </div>`;
+        <p class="ct-pie">${esc(_t('Tocá una cuenta para pasarte a ella al instante — no hay que volver a loguearse. La que está en uso abre su detalle.'))}</p>`;
       cuerpo.querySelectorAll('[data-act]').forEach(el =>
         el.addEventListener('click', () => accion(el.dataset)));
     }
 
     async function recargar() {
-      try { const data = await _ctaFetch('/api/cuentas'); _clis = data.clis || []; _ultimo = JSON.stringify(_clis); }
+      try { const data = await _ctaFetch('/api/cuentas'); _clis = data.clis || []; }
       catch { cuerpo.innerHTML = `<p class="cta-err">${esc(_t('No se pudieron cargar las cuentas.'))}</p>`; return; }
       _res.cuentas = _clis.reduce((a, c) => a + (c.cuentas || []).length, 0);
       _pintarValores();
       pintar();
-      _cargarUso();
-    }
-
-    // Re-lee las cuentas SIN parpadeo: se repinta solo si algo cambió. Así, loguearte en una
-    // terminal y volver acá muestra la cuenta sola (antes solo se leía al abrir la pantalla).
-    let _ultimo = '';
-    async function refrescarSilencioso() {
-      if (!b.isConnected || !_abierta || _seccion !== 'cuentas' || document.hidden) return;
-      let data; try { data = await _ctaFetch('/api/cuentas'); } catch { return; }
-      const firma = JSON.stringify(data.clis || []);
-      if (firma === _ultimo) return;
-      _ultimo = firma;
-      _clis = data.clis || [];
-      _res.cuentas = _clis.reduce((a, c) => a + (c.cuentas || []).length, 0);
-      _pintarValores(); pintar();
-    }
-    const _tick = setInterval(() => { if (!b.isConnected) { clearInterval(_tick); window.removeEventListener('focus', refrescarSilencioso); return; } refrescarSilencioso(); }, 4000);
-    window.addEventListener('focus', refrescarSilencioso);
-
-    async function _diagnosticar() {
-      const pre = b.querySelector('#ct-diag');
-      if (!pre) return;
-      pre.hidden = false; pre.textContent = _t('Revisando…');
-      const tipos = _clis.filter(c => !(c.cuentas || []).length).map(c => c.tipo);
-      const partes = [];
-      for (const t of tipos) {
-        try {
-          const d = await _ctaFetch(`/api/cuentas/diagnostico/${encodeURIComponent(t)}`);
-          const l = [`${_tipoLabel(t)} — ${d.logueado ? _t('sesión encontrada') : _t('sin sesión')}${d.email ? ' · ' + d.email : ''}`];
-          if (d.claude_config_dir) l.push(`  CLAUDE_CONFIG_DIR = ${d.claude_config_dir}`);
-          (d.archivos || []).forEach(a => l.push(`  ${a.existe ? '✓' : '✗'} ${a.ruta}${a.claves ? '  [' + a.claves.slice(0, 6).join(', ') + ']' : ''}`));
-          (d.pistas || []).forEach(x => l.push(`  → ${x}`));
-          partes.push(l.join('\n'));
-        } catch { /* un tipo que falla no tapa a los demás */ }
-      }
-      pre.textContent = partes.join('\n\n') || _t('No hay nada para diagnosticar.');
     }
 
     async function accion(ds) {
-      if (ds.act === 'diag') { _diagnosticar(); return; }
       const id = ds.id;
       if (ds.act === 'detalle') {
         const clave = `${ds.tipo}:${id}`;
@@ -1274,7 +1184,6 @@
         pintar(); return;
       }
       if (ds.act === 'vermail') { _verMail = !_verMail; pintar(); return; }
-      if (ds.act === 'uso-refrescar') { _uso = null; pintar(); await _cargarUso(true); return; }
       if (ds.act === 'copy') {
         try { await navigator.clipboard.writeText(_buscar(id)?.email || ''); window.toast?.(_t('Correo copiado')); }
         catch { window.toast?.(_t('No se pudo copiar'), 'error'); }
@@ -1318,58 +1227,284 @@
   }
 
   /* ═══════════════════════════════════════════════════════════
-     5 · EXTENSIONES — "Estudio de extensiones" (extensions.js/.css)
-     Plugins y marketplace de Claude Code + las skills/reglas que lee CADA IA
-     (Claude, Codex, Gemini, Cursor, Copilot…). Todo el cuerpo lo pinta
-     window.JarvisExtensiones; acá sólo se monta y se le pasan los ganchos.
+     5 · EXTENSIONES — el markup .ps-* lo cablea JarvisSkills.montar()
+     (workspace.js): se re-viste, no se reescribe.
      ═══════════════════════════════════════════════════════════ */
-  const _EXT_V = 1;   // subir junto con los ?v= de workspace.html
-  let _extCarga = null;
-  // Si workspace.html todavía no trae los tags de extensions.*, se cargan acá
-  // (idempotente: con los tags presentes no hace nada).
-  function _cargarExtensiones() {
-    if (window.JarvisExtensiones) return Promise.resolve();
-    if (_extCarga) return _extCarga;
-    if (!document.querySelector('link[href*="/settings/extensions.css"]')) {
-      const l = document.createElement('link');
-      l.rel = 'stylesheet';
-      l.href = `/static/sections/settings/extensions.css?v=${_EXT_V}`;
-      document.head.appendChild(l);
-    }
-    _extCarga = new Promise((ok, mal) => {
-      const s = document.createElement('script');
-      s.src = `/static/sections/settings/extensions.js?v=${_EXT_V}`;
-      s.onload = () => ok();
-      s.onerror = () => { _extCarga = null; mal(new Error('extensions.js')); };
-      document.head.appendChild(s);
-    });
-    return _extCarga;
+  function _renderSkills(b) {
+    b.innerHTML = blk('rack', 'plugins del proyecto y skills del repo', `
+      <div class="ps-toolbar">
+        <div class="ps-tabs">
+          <button class="ps-tab activo" data-tab="instalados">${esc(_t('Mis Plugins'))}</button>
+          <button class="ps-tab" data-tab="marketplace">${esc(_t('Marketplace'))}</button>
+        </div>
+        <label class="ps-buscar">
+          ${icon('search', 13)}
+          <input id="ps-buscar" type="text" placeholder="${esc(_t('Buscar plugin o skill…'))}" autocomplete="off" spellcheck="false" aria-label="${esc(_t('Buscar plugin o skill'))}">
+        </label>
+      </div>
+      <div class="modal-body-ps">
+        <div class="ps-panel activo" data-panel="instalados">
+          <section class="ps-section">
+            <header class="ps-section-head">
+              <span class="ps-section-icon ps-icon-plugin">${icon('plug', 14)}</span>
+              <h3>${esc(_t('Plugins instalados'))}</h3>
+              <span class="ps-section-sub" id="ps-plugins-count">0</span>
+            </header>
+            <div class="ps-list" id="ps-plugins-instalados"><div class="ps-empty">${esc(_t('Cargando…'))}</div></div>
+          </section>
+          <section class="ps-section">
+            <header class="ps-section-head">
+              <span class="ps-section-icon ps-icon-skill">${icon('file', 14)}</span>
+              <h3>${esc(_t('Skills del proyecto'))}</h3>
+              <span class="ps-section-sub" id="ps-skills-count">0</span>
+              <span class="ps-spacer"></span>
+              <button class="sx-btn sm ps-mini-btn" id="ps-btn-new-skill">+ ${esc(_t('Nueva'))}</button>
+            </header>
+            <div class="ps-skill-path" id="ps-skill-path">.claude/skills/</div>
+            <div class="ps-list" id="ps-skills-md"><div class="ps-empty">${esc(_t('Cargando…'))}</div></div>
+          </section>
+        </div>
+        <div class="ps-panel" data-panel="marketplace">
+          <section class="ps-section">
+            <header class="ps-section-head">
+              <span class="ps-section-icon ps-icon-plugin">${icon('plug', 14)}</span>
+              <h3>${esc(_t('Plugins disponibles'))}</h3>
+              <span class="ps-section-sub" id="ps-marketplace-count">0</span>
+            </header>
+            <div class="ps-grid" id="ps-marketplace"><div class="ps-empty">${esc(_t('Cargando marketplace…'))}</div></div>
+          </section>
+        </div>
+      </div>`, { wide: true, key: 'Plugins instalados' });
+    window.JarvisSkills?.montar?.();   // bridge expuesto desde workspace.js
+    _wireSkillsBuscar(b);
   }
 
-  function _renderSkills(b) {
-    const montar = () => {
-      if (!_abierta || _seccion !== 'skills' || !b.isConnected) return;
-      window.JarvisExtensiones.montar(b, {
-        projectId: _projectId,
-        onActivos: (n) => { _res.activos = n; _pintarValores(); },
-      });
+  // Filtra por texto las TRES listas. Las renderiza workspace.js DESPUÉS y las
+  // re-renderiza al togglear/instalar, así que un observer re-aplica el filtro.
+  function _wireSkillsBuscar(b) {
+    const input = b.querySelector('#ps-buscar');
+    if (!input) return;
+    const zonas = [
+      { cont: b.querySelector('#ps-plugins-instalados'), sel: '.ps-item' },
+      { cont: b.querySelector('#ps-skills-md'),          sel: '.ps-item' },
+      { cont: b.querySelector('#ps-marketplace'),        sel: '.ps-card' },
+    ].filter(z => z.cont);
+    const aplicar = () => {
+      const q = input.value.trim().toLowerCase();
+      for (const z of zonas) {
+        const items = z.cont.querySelectorAll(z.sel);
+        let visibles = 0;
+        items.forEach(el => {
+          const hit = !q || el.textContent.toLowerCase().includes(q);
+          el.classList.toggle('ps-filtrado', !hit);
+          if (hit) visibles++;
+        });
+        let aviso = z.cont.querySelector('.ps-filtro-vacio');
+        if (q && items.length && !visibles) {
+          if (!aviso) {
+            aviso = document.createElement('div');
+            aviso.className = 'ps-filtro-vacio';
+            z.cont.appendChild(aviso);
+          }
+          aviso.innerHTML = `<span>${esc(_t('Sin resultados para'))}</span> <b>«${esc(input.value.trim())}»</b>`;
+        } else { aviso?.remove(); }
+      }
     };
-    if (window.JarvisExtensiones) { montar(); return; }
-    b.innerHTML = `<div class="cta-cargando">${icon('loader', 15)} ${esc(_t('Cargando…'))}</div>`;
-    _cargarExtensiones().then(montar, () => {
-      b.innerHTML = `<div class="sx-empty"><b>${esc(_t('No se pudo cargar'))}</b></div>`;
+    input.addEventListener('input', aplicar);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && input.value) { e.preventDefault(); e.stopPropagation(); input.value = ''; aplicar(); }
     });
+    const mo = new MutationObserver((muts) => {
+      if (!input.value.trim()) return;
+      const ajeno = muts.some(m =>
+        [...m.addedNodes, ...m.removedNodes].some(n => !(n.nodeType === 1 && n.classList?.contains('ps-filtro-vacio'))));
+      if (ajeno) aplicar();
+    });
+    zonas.forEach(z => mo.observe(z.cont, { childList: true }));
   }
 
   /* ═══════════════════════════════════════════════════════════
      6 · MEMORIA — consola (antes: una fila con un botón «Abrir»)
      ═══════════════════════════════════════════════════════════ */
+  function _renderMemoria(b) {
+    b.innerHTML = blk('pulso', 'de un vistazo',
+      `<div class="cta-cargando">${icon('loader', 15)} ${esc(_t('Leyendo la memoria del proyecto…'))}</div>`,
+      { wide: true, key: 'Explorar memoria' });
+    if (!_projectId) { b.innerHTML = blk('memoria', '', `<div class="sx-empty"><b>${esc(_t('Sin proyecto abierto'))}</b></div>`, { wide: true }); return; }
+
+    const pid = _projectId;
+    Promise.allSettled([
+      fetch(`/api/projects/${pid}/memory/salud`).then(r => r.json()),
+      fetch(`/api/projects/${pid}/memory`).then(r => r.json()),
+    ]).then(([s, m]) => {
+      if (!_abierta || _seccion !== 'memoria' || _projectId !== pid) return;
+      const sal = s.status === 'fulfilled' ? (s.value || {}) : {};
+      const mem = (m.status === 'fulfilled' ? (m.value?.memorias || []) : []);
+      _pintarMemoria(b, sal, mem);
+    });
+  }
+
+  function _pintarMemoria(b, sal, mem) {
+    const alt = sal.altimetro || {};
+    const lec = sal.lecciones || {};
+    const hayTel = (alt.inyecciones || 0) > 0;
+    const tasa = hayTel ? Math.round((alt.tasa_lectura || 0) * ((alt.tasa_lectura || 0) > 1 ? 1 : 100)) : null;
+
+    const problemas = [
+      ['enlaces rotos', (sal.rotos || []).length, 'er'],
+      ['citas muertas', (sal.citas_muertas || []).length, 'er'],
+      ['contrato incompleto', (sal.contrato || []).length, 'wk'],
+      ['huérfanas', (sal.huerfanas || []).length, 'wk'],
+      ['en cuarentena', (sal.cuarentena || []).length, 'wk'],
+      ['choques lápida/vigente', (sal.choques || []).length, 'er'],
+      ['duplicados', (sal.duplicados || []).length, 'wk'],
+    ].filter(p => p[1] > 0);
+
+    const pulso = `
+      <div class="mm-pulso">
+        <div class="mm-big"><b>${num(sal.total ?? mem.length)}</b><span>${esc(_t('memorias vigentes'))}</span></div>
+        <div class="mm-alt">
+          <div class="mm-alt-h">
+            <span>${esc(_t('de lo inyectado, cuánto se leyó'))} · ${num(alt.dias || 7)} ${esc(_t('días'))}</span>
+            ${hayTel ? `<b class="sx-mono">${tasa}%</b>` : `<b class="sx-mono sx-dim">${esc(_t('sin datos'))}</b>`}
+          </div>
+          ${hayTel ? `<div class="mm-bar"><i style="width:${Math.min(100, tasa)}%"></i></div>` : ''}
+          <div class="mm-alt-f sx-mono sx-dim">${hayTel
+            ? `${num(alt.inyecciones)} ${esc(_t('inyectadas'))} · ${num(alt.lecturas)} ${esc(_t('leídas'))} · ${num(alt.lecturas_en_done)} ${esc(_t('en tareas cerradas'))}`
+            : esc(_t('todavía no se registraron inyecciones en esta ventana'))}</div>
+        </div>
+        <div class="mm-sig">${problemas.length
+          ? problemas.map(([n, v, k]) => `<span class="sx-pill ${k}">${esc(_t(n))} ${v}</span>`).join('')
+          : `<span class="sx-pill ok">${esc(_t('sin problemas de salud'))}</span>`}</div>
+      </div>`;
+
+    const cats = Object.entries(sal.por_categoria || {});
+    const maxCat = Math.max(1, ...cats.map(([, c]) => c.total || 0));
+    const cuadros = cats.length ? `<div class="mm-cats">${cats.map(([id, c]) => {
+      const mal = (c.rotos || 0) + (c.citas_muertas || 0) + (c.huerfanas || 0) + (c.contrato || 0);
+      return `<div class="mm-cat"${mal ? ` title="${mal} ${esc(_t('con problemas de salud'))}"` : ''}>
+        <span class="mm-cat-n">${esc(c.nombre || id)}</span>
+        <span class="mm-cat-b"><i style="width:${Math.round((c.total || 0) / maxCat * 100)}%"></i></span>
+        <span class="mm-cat-v sx-mono">${mal ? `<em>${mal}</em>` : ''}${num(c.total)}</span>
+      </div>`;
+    }).join('')}</div>` : '';
+
+    const recientes = mem.slice()
+      .sort((a, b2) => String(b2.actualizado || '').localeCompare(String(a.actualizado || '')))
+      .slice(0, 7);
+    const lista = recientes.length ? `<div class="mm-list">${recientes.map(m => `
+      <button class="mm-i" type="button" data-slug="${esc(m.slug)}">
+        <span class="mm-i-t"><b>${esc(limpio(m.titulo) || m.slug)}</b><span>${esc(limpio(m.resumen))}</span></span>
+        <span class="mm-i-m">
+          ${m.estado && m.estado !== 'vigente' ? `<span class="sx-pill ${m.estado === 'lapida' ? 'er' : 'wk'}">${esc(m.estado)}</span>` : ''}
+          <span class="sx-mono sx-dim">${esc(m.actualizado || '')}</span>
+        </span>
+      </button>`).join('')}</div>`
+      : `<div class="sx-empty"><b>${esc(_t('Todavía no hay memorias'))}</b>
+          <p>${esc(_t('Cuando un agente descubre algo que el resto debería saber, lo deja acá y el recall se lo inyecta al siguiente. Se guardan en .jarvis/memory/.'))}</p></div>`;
+
+    b.innerHTML =
+      blk('pulso', 'de un vistazo', pulso, { wide: true, key: 'Explorar memoria' }) +
+      (cuadros ? blk('cuadros', 'por categoría', cuadros, { wide: true }) : '') +
+      blk('recientes', 'últimas tocadas', lista, { wide: true }) +
+      blk('lecciones', 'lo aprendido', `
+        <div class="sx-set">
+          <div class="sx-set-t"><b>${esc(_t('Destilador de lecciones'))}</b>
+            <span>${esc(_t('Junta los motivos de los pasos trabados y los convierte en reglas cortas que se inyectan a TODOS los agentes.'))}</span></div>
+          <span class="sx-pill ${lec.activo ? 'ok' : 'mute'}">${lec.activo ? esc(_t('activo')) : esc(_t('apagado'))}</span>
+        </div>
+        <div class="mm-lec-n sx-mono sx-dim">${num(lec.lecciones_memoria)} ${esc(_t('lecciones'))} ·
+          ${num(lec.senales_pendientes)} ${esc(_t('señales pendientes'))} (${esc(_t('destila a las'))} ${num(lec.umbral || 6)})</div>`,
+        { key: 'Lecciones' }) +
+      blk('archivo', 'la carpeta', `
+        <div class="sx-set">
+          <div class="sx-set-t"><b>${esc(_t('Explorador de memoria'))}</b>
+            <span>${esc(_t('Lista, grafo de [[wikilinks]] y panel Live de quién toca qué.'))}</span></div>
+          <button class="sx-btn" id="sx-abrir-memoria" type="button">${icon('external-link', 13)} ${esc(_t('Abrir'))}</button>
+        </div>`);
+
+    const abrir = () => window.JarvisMemory?.abrir?.();
+    b.querySelector('#sx-abrir-memoria')?.addEventListener('click', abrir);
+    b.querySelectorAll('.mm-i').forEach(x => x.addEventListener('click', abrir));
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     7 · WORKFLOWS — línea de tiempo con el track de pasos
+     ═══════════════════════════════════════════════════════════ */
+  const _WF_K = { running: 'wk', done: 'ok', failed: 'er', pending: 'mute' };
+
+  function _renderWorkflows(b) {
+    b.innerHTML = blk('historial', 'orquestaciones del proyecto',
+      `<div class="cta-cargando">${icon('loader', 15)} ${esc(_t('Cargando…'))}</div>`,
+      { wide: true, key: 'Historial de workflows' });
+    if (!_projectId) return;
+    const pid = _projectId;
+    fetch(`/api/orchestrator/workflows/${pid}`)
+      .then(r => r.json())
+      .then(wfs => {
+        if (!_abierta || _seccion !== 'workflows' || _projectId !== pid) return;
+        _res.workflows = (wfs || []).length;
+        _pintarValores();
+        _pintarWorkflows(b, wfs || []);
+      })
+      .catch(() => _pintarWorkflows(b, []));
+  }
+
+  function _pintarWorkflows(b, wfs) {
+    if (!wfs.length) {
+      b.innerHTML = blk('historial', 'orquestaciones del proyecto', `
+        <div class="sx-empty">
+          <b>${esc(_t('Todavía no corrió ningún workflow'))}</b>
+          <p>${esc(_t('Cuando le pedís algo grande al orquestador, arma un plan de pasos, levanta una terminal por agente y los coordina. Acá vas a ver cada corrida con su objetivo y en qué paso quedó.'))}</p>
+        </div>`, { wide: true, key: 'Historial de workflows' }) +
+        blk('así se ve', 'ejemplo de una corrida', `
+          <article class="wf-i wf-demo" aria-hidden="true">
+            <header class="wf-h">
+              <span class="sx-pill wk">running</span>
+              <b>${esc(_t('Ejemplo: rediseño de una sección'))}</b>
+            </header>
+            <div class="wf-track"><i class="ok"></i><i class="ok"></i><i class="now"></i><i></i><i></i>
+              <span class="wf-n sx-mono sx-dim">2/5</span></div>
+          </article>
+          <div class="wf-leg">
+            <span><i class="ok"></i> ${esc(_t('paso cerrado'))}</span>
+            <span><i class="now"></i> ${esc(_t('en curso'))}</span>
+            <span><i></i> ${esc(_t('pendiente'))}</span>
+            <span class="sx-dim">${esc(_t('el último paso siempre es el Reviewer'))}</span>
+          </div>`, { wide: true });
+      return;
+    }
+    const filas = wfs.map(w => {
+      const total = w.total_pasos || (w.pasos || []).length || 0;
+      const hecho = Math.max(0, w.paso_actual || 0);
+      const k = _WF_K[w.estado] || 'mute';
+      const f = w.created_at ? new Date(w.created_at) : null;
+      return `<article class="wf-i">
+        <header class="wf-h">
+          <span class="sx-pill ${k}">${esc(w.estado || '')}</span>
+          <b>${esc(w.nombre || _t('Sin nombre'))}</b>
+          <span class="wf-d sx-mono sx-dim">${f && !isNaN(f)
+            ? f.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' }) + ' ' + f.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            : ''}</span>
+        </header>
+        ${w.objetivo ? `<p class="wf-o">${esc(w.objetivo)}</p>` : ''}
+        <div class="wf-track" aria-label="${hecho} / ${total}">
+          ${Array.from({ length: total }, (_, i) =>
+            `<i class="${i < hecho ? 'ok' : ''}${i === hecho && w.estado === 'running' ? ' now' : ''}"></i>`).join('')}
+          <span class="wf-n sx-mono sx-dim">${hecho}/${total}</span>
+        </div>
+      </article>`;
+    }).join('');
+    b.innerHTML = blk('historial', `${wfs.length} ${wfs.length === 1 ? _t('corrida') : _t('corridas')}`,
+      `<div class="wf">${filas}</div>`, { wide: true, key: 'Historial de workflows' });
+  }
+
   /* ═══════════════════════════════════════════════════════════ */
   window.JarvisSettings = {
     init(projectId) { _projectId = projectId; },
     onProjectChanged(projectId) {
       _projectId = projectId;
-      _res.activos = _res.memorias = null;
+      _res.activos = _res.memorias = _res.workflows = null;
       if (_abierta) { _renderSeccion(); _cargarResumen(); }
     },
     open, close,

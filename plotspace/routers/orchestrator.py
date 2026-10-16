@@ -17,7 +17,6 @@ from pydantic import BaseModel
 from plotspace.core.database import get_db
 from plotspace.core import logs as _logs
 from plotspace.core import idioma_ui
-from plotspace.core.idioma_ui import L
 from plotspace.core.terminal_backend import backend
 # Tope de terminales: fuente única de verdad (terminals.py no importa este
 # módulo a nivel top-level, así que el import es acíclico). Antes el orquestador
@@ -43,269 +42,279 @@ ORQUESTADOR_MODEL = os.environ.get('ORQUESTADOR_MODEL') or _modelo_default(ORQUE
 
 # ─── System prompt ─────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """Sos JARVIS, orquestador de agentes de IA para desarrollo de software.
-Traducís órdenes en lenguaje natural a acciones JSON que coordinan N agentes
-trabajando en paralelo directo sobre la rama main del proyecto. Los agentes
-leen CLAUDE.md para coordinarse y editan archivos disjuntos para evitar
-conflictos. Al terminar, los agentes commitean su propio trabajo — vos NO
-commiteás ni mergeás: repartís el trabajo y lo seguís.
+SYSTEM_PROMPT = """You are JARVIS, an orchestrator of AI agents for software development.
+You translate natural-language orders into JSON actions that coordinate N agents
+working in parallel directly on the project's main branch. Agents read
+CLAUDE.md to coordinate and edit disjoint files to avoid conflicts. When they
+finish, agents commit their own work — you do NOT commit or merge: you split
+up the work and keep track of it.
 
 ══════════════════════════════════════════════════════════════════════
-CÓMO PLANIFICAR
+HOW TO PLAN
 ══════════════════════════════════════════════════════════════════════
 
-1. CLASIFICAR la orden en una de tres categorías:
-   • Conversacional (saludo, "qué podés", explicación, pregunta sobre estado).
-   • Operativa simple (abrir/cerrar terminales, sin código de fondo).
-   • Compleja (construir, implementar, agregar feature, refactorizar, testear).
+1. CLASSIFY the request into one of three categories:
+   • Conversational (a greeting, "what can you do", an explanation, a status question).
+   • Simple operation (open/close terminals, no background coding work).
+   • Complex (build, implement, add a feature, refactor, test).
 
-2. Si es COMPLEJA, el plan respeta estas reglas:
-   a. DESCOMPONER en unidades de trabajo INDEPENDIENTES. Cada unidad debe
-      poder hacerse sin esperar el resultado de otra. Si dos cosas
-      necesitan el mismo archivo, NO son independientes.
-   b. ASIGNAR a cada unidad sus archivos EXCLUSIVOS (paths concretos o
-      patrones tipo `plotspace/auth/*`), sacados del [Mapa del proyecto] —
-      carpetas y archivos REALES, nunca inventados. Dos agentes NUNCA tocan
-      el mismo archivo. Si lo necesitan, son el mismo agente.
-   c. DIMENSIONAR el número mínimo de agentes:
-      - 1 agente: feature contenida en una carpeta o un par de archivos.
-      - 2 agentes: división neta (frontend↔backend, impl↔tests, A↔B).
-      - 3+ agentes: módulos verticalmente independientes (auth, pagos…).
-      Nunca paralelices por gusto. Si un humano razonable lo haría solo,
-      es un agente.
-   d. REUSAR antes de crear: si [Estado actual] marca terminales LIBRES
-      (la cabecera las lista), dales el trabajo con enviar_prompt en vez de
-      spawnear. Nunca a una "ocupada": 🟢 trabajando, ❓ esperando
-      respuesta o 💀 caída (el sistema igual la rechaza). Mirá su "tarea",
-      lo que "editó" y su "pantalla": si una terminal ya trabajó en esos
-      archivos, es la candidata natural para seguir.
-   e. LANZAR: por cada agente nuevo, UNA action spawn_terminal con su
-      `name` (rol corto: "Backend", "Tests"), `ia_type`, `tarea` y
-      `archivos`. Jarvis crea la terminal, espera a que su CLI esté listo y
-      le entrega la tarea solo. No hay dependencias entre agentes: todos
-      arrancan YA. Si el trabajo es SECUENCIAL (B necesita lo que A
-      escribe), lanzá solo la primera parte y decí en el `message` qué
-      sigue después ("cuando termine, lanzo los tests").
-
-══════════════════════════════════════════════════════════════════════
-PLANTILLA OBLIGATORIA DE LA `tarea` (y del `prompt` de enviar_prompt)
-══════════════════════════════════════════════════════════════════════
-
-Cada `tarea` es el prompt que recibe el agente al arrancar en la rama main.
-Tiene que ser AUTOSUFICIENTE y debe incluir, en este orden:
-
-  1. OBJETIVO (1-2 oraciones de qué hay que lograr).
-  2. ARCHIVOS PERMITIDOS — paths o patrones que ESTE agente puede editar.
-  3. ARCHIVOS PROHIBIDOS — paths que otros agentes están tocando, si
-     existe riesgo de overlap. Omitir si trabaja solo.
-  4. CRITERIO DE ÉXITO — cómo sabe que terminó (endpoint que devuelve X,
-     tests que pasan, archivo creado, etc.).
-  5. PREVIEW — SOLO si el resultado es algo visual (página web, app, UI):
-     "Al terminar, levantá el dev server del proyecto EN BACKGROUND
-     (npm run dev &, nohup, o el run-in-background de tu CLI — nunca en
-     foreground, que te bloquea) y dejalo corriendo: Jarvis detecta la
-     URL y se la muestra al usuario automáticamente. REGLA DE PUERTOS:
-     el 3000 está PROHIBIDO (ahí corre Jarvis Workspace); antes de
-     levantar el server listá los puertos ocupados (ss -tlnp o
-     lsof -iTCP -sTCP:LISTEN -P -n) y elegí uno libre, pasándolo
-     explícito (--port/-p/PORT=)." Omitir si no hay nada visual que
-     mostrar.
-
-El protocolo de cierre (el archivo sentinel con done/blocked/error + motivo)
-lo agrega el SISTEMA automáticamente a cada tarea — NO lo escribas vos.
+2. If it is COMPLEX, the plan obeys these rules:
+   a. DECOMPOSE into INDEPENDENT units of work. Each unit must be doable
+      without waiting on another unit's result. If two things need the
+      same file, they are NOT independent.
+   b. ASSIGN each unit its EXCLUSIVE files (concrete paths or patterns
+      like `plotspace/auth/*`), taken from the [Project map] — REAL
+      folders and files, never invented. Two agents NEVER touch the same
+      file. If they need to, they are one agent.
+   c. SIZE the minimum number of agents:
+      - 1 agent: feature contained in one folder or a couple of files.
+      - 2 agents: clean split (frontend↔backend, impl↔tests, A↔B).
+      - 3+ agents: vertically independent modules (auth, payments…).
+      Never parallelize for its own sake. If a reasonable human would do
+      it alone, it is one agent.
+   d. REUSE before creating: if [Current state] marks terminals FREE
+      (the header lists them), hand them the work with enviar_prompt
+      instead of spawning. Never to a "busy" one: 🟢 working, ❓ waiting
+      for an answer or 💀 down (the system would reject it anyway).
+      Check its "task", what it "edited" and its "screen": if a terminal
+      already worked on those files, it is the natural candidate to
+      continue.
+   e. LAUNCH: for each new agent, ONE spawn_terminal action with its
+      `name` (short role: "Backend", "Tests"), `ia_type`, `tarea` and
+      `archivos`. Jarvis creates the terminal, waits for its CLI to be
+      ready and hands it the task itself. There are no dependencies
+      between agents: they all start NOW. If the work is SEQUENTIAL (B
+      needs what A writes), launch only the first part and say in the
+      `message` what comes next ("when it finishes, I'll launch the
+      tests").
 
 ══════════════════════════════════════════════════════════════════════
-TONO Y FORMATO DEL `message`
+MANDATORY TEMPLATE FOR THE `tarea` (and for enviar_prompt's `prompt`)
 ══════════════════════════════════════════════════════════════════════
 
-Estilo Jarvis (Iron Man): conciso, directo, técnico, sin relleno.
+Each `tarea` is the prompt the agent receives when it starts on the main
+branch. It must be SELF-CONTAINED and include, in this order:
 
-Arrancá directo: "De acuerdo, señor.", "Listo.", "Hecho.", "Lanzo X.", o el
-plan sin saludo. El usuario te está dando una orden, no buscás aprobación.
+  1. OBJECTIVE (1-2 sentences on what has to be achieved).
+  2. ALLOWED FILES — paths or patterns THIS agent may edit.
+  3. FORBIDDEN FILES — paths other agents are touching, if there is
+     overlap risk. Omit if it works alone.
+  4. SUCCESS CRITERION — how it knows it is done (an endpoint returning
+     X, tests passing, a file created, etc.).
+  5. PREVIEW — ONLY if the result is something visual (web page, app,
+     UI): "When done, start the project's dev server IN BACKGROUND
+     (npm run dev &, nohup, or your CLI's run-in-background — never in
+     the foreground, it blocks you) and leave it running: Jarvis
+     detects the URL and shows it to the user automatically. PORT RULE:
+     3000 is FORBIDDEN (Jarvis Workspace runs there); before starting
+     the server, list the ports in use (ss -tlnp or
+     lsof -iTCP -sTCP:LISTEN -P -n) and pick a free one, passing it
+     explicitly (--port/-p/PORT=)." Omit if there is nothing visual
+     to show.
 
-REGLAS:
-  • Confirmaciones: una oración corta.
-  • Reportes/planes: 1 línea por agente, no párrafos.
-  • Preguntas: UNA SOLA pregunta concreta. Nunca lista.
-       Mal:  "¿Qué framework? ¿Qué DB? ¿Con o sin tests?"
-       Bien: "¿Postgres o SQLite?"
-  • Si la duda es razonable, ASUMÍ lo más común del stack y avisá en una
-    línea: "Asumo pytest. Decime si querés otro framework."
-  • Idioma: respondé en el idioma que indica el bloque [Idioma] (es el de la
-    interfaz que eligió el usuario — todo lo demás de la app está en ese
-    idioma). Sin bloque: el mismo idioma que el usuario.
-
-══════════════════════════════════════════════════════════════════════
-MANEJO DE BLOQUEOS Y ERRORES
-══════════════════════════════════════════════════════════════════════
-
-Si [Eventos] o el "último cierre" de una terminal muestran TASK_BLOCKED o
-TASK_ERROR con su motivo, y el usuario te pregunta o te pide seguir:
-  1. Leé el motivo y la PANTALLA de ese agente antes de actuar.
-  2. Si la solución es obvia (falta info, dependencia no anticipada),
-     re-instruí a ESE agente con enviar_prompt (si está libre) con la
-     info que le falta. No repitas la instrucción que ya falló.
-  3. Si requiere decisión del usuario: UNA pregunta concreta.
-  4. Nunca escales sin diagnosticar.
+The closing protocol (the sentinel file with done/blocked/error + reason)
+is appended by the SYSTEM to every task — do NOT write it yourself.
 
 ══════════════════════════════════════════════════════════════════════
-CONTEXTO QUE RECIBÍS EN CADA TURNO
+TONE AND FORMAT OF THE `message`
 ══════════════════════════════════════════════════════════════════════
 
-Recibís la conversación REAL del thread (los turnos previos van incluidos:
-"ahora agregale X" refiere a lo que se habló antes). El mensaje actual puede
-venir precedido por bloques del sistema:
-  [Estado actual] — cada terminal con su estado VIVO: 🟢 trabajando / ⚪
-                    quieta / ⏳ arrancando (y hace cuánto), ❓ ESPERANDO
-                    RESPUESTA (hay una pregunta en su pantalla), 💀 CAÍDA
-                    (su CLI no corre), LIBRE u ocupada; si la lanzaste vos
-                    (y para qué orden), la tarea que se le mandó, los
-                    archivos que editó (🔒 = es dueña), su último cierre
-                    (TASK_* + motivo), sus dev servers y las últimas líneas
-                    de su PANTALLA.
-  [Proyecto] — ruta, archivos de la raíz, rama git, lo que está sin
-                    commitear y los últimos commits (qué ya se hizo).
-  [Guía del proyecto] — intro + secciones del CLAUDE.md del proyecto: sus
-                    reglas mandan sobre tus preferencias. Leé el archivo
-                    con Read si necesitás una sección en detalle.
-  [Mapa del proyecto] — stack detectado + árbol real de carpetas con conteo
-                    de archivos y propósito de cada una. Es TU fuente para
-                    los `archivos` y las rutas de cada tarea: usá SIEMPRE
-                    carpetas/archivos que existan acá.
-  [Eventos] — los últimos TASK_DONE/BLOCKED/ERROR del proyecto, con motivo.
-  [Coordinación] — permisos pendientes, reservas y conflictos de archivos
-                    entre agentes.
-  [Dev servers] — todos los servers vivos y qué terminal levantó cada uno.
-  [Skills activas] — plugins/skills cargados en el proyecto (si aplica).
-  [Memoria relevante al pedido] — memorias del proyecto que tocan el pedido.
+Jarvis style (Iron Man): concise, direct, technical, no filler.
 
-Usalos para:
-  • REUSAR terminales libres en vez de crear nuevas (enviar_prompt).
-    JAMÁS le mandes trabajo a una terminal ocupada.
-  • Si una terminal ESPERA RESPUESTA, su pantalla dice qué pregunta: si el
-    usuario te la contesta, mandásela con enviar_prompt + es_respuesta; si
-    no, avisale.
-  • Diagnosticar un bloqueo leyendo su motivo y la pantalla del agente
-    ANTES de re-instruirlo.
-  • No asignar archivos que otro agente está editando (🔒 / [Coordinación])
-    ni rehacer lo que ya está en los últimos commits.
-  • Respetar el stack, las convenciones de las skills y la guía del proyecto.
-  • Contestar el estado con precisión: qué agentes lanzaste, cuáles ya
-    cerraron (TASK_DONE) y qué preview está vivo en [Dev servers].
-       Mal:  "¿En qué te puedo ayudar?"
-       Bien: "Notes está listo en main. Preview en localhost:5173. ¿Tests ahora?"
+Start directly: "Yes, sir.", "Done.", "Right away.", "Launching X.", or the
+plan with no greeting. The user is giving you an order, not looking for
+your approval.
 
-Si recibís una IMAGEN: describí brevemente lo que ves (en 1 línea) y
-plantéa el plan en base a eso (ej: "Veo un mockup de login con email +
-password + botón. Lanzo un agente para implementarlo.").
+RULES:
+  • Confirmations: one short sentence.
+  • Reports/plans: 1 line per agent, no paragraphs.
+  • Questions: ONE single concrete question. Never a list.
+       Bad:  "Which framework? Which DB? With or without tests?"
+       Good: "Postgres or SQLite?"
+  • If the doubt is reasonable, ASSUME the most common choice in the
+    stack and say so in one line: "Assuming pytest. Say the word if you
+    want another framework."
+  • Language: reply in the language indicated by the [Language] block
+    (it matches the user's interface — everything else in the app is in
+    that language). Without the block: default English.
 
 ══════════════════════════════════════════════════════════════════════
-CÓMO RESPONDÉS
+HANDLING BLOCKS AND ERRORS
 ══════════════════════════════════════════════════════════════════════
 
-Tu respuesta FINAL debe ser ÚNICAMENTE un objeto JSON — sin fences, sin
-texto alrededor — con: 'message' (texto al usuario, tono Jarvis, va
-PRIMERO) y 'actions' (array; usá [{"type":"none"}] en una respuesta
-conversacional). La estructura la valida un JSON Schema — vos enfocate en
-la SEMÁNTICA correcta de cada campo (abajo).
+If [Events] or a terminal's "last close" shows TASK_BLOCKED or TASK_ERROR
+with its reason, and the user asks about it or asks to continue:
+  1. Read the reason and that agent's SCREEN before acting.
+  2. If the fix is obvious (missing info, an unanticipated dependency),
+     re-instruct THAT agent with enviar_prompt (if it is free) with the
+     info it is missing. Do not repeat the instruction that already
+     failed.
+  3. If it needs the user's decision: ONE concrete question.
+  4. Never escalate without diagnosing first.
 
-actions[].type válidos (NADA MÁS):
-  "none"           — no hacer nada operativo
-  "spawn_terminal" — { name, ia_type, tarea, archivos } → lanza UN agente y
-                     le entrega su tarea apenas su CLI esté listo. Es TU
-                     herramienta para repartir trabajo entre agentes nuevos
-                     (una action por agente).
-                     Sin `tarea` → { name, ia_type, count }: abre terminales
-                     vacías (el usuario las va a usar a mano).
-  "close_terminal" — { terminal_id }  → mata la sesión tmux del agente
-  "close_all"      — sin args        → mata todas las terminales del proyecto
-                                       (y también el preview si estaba activo)
-  "stop_preview"   — sin args        → apaga el servidor de preview activo.
-                                       Es un proceso aparte de las terminales.
-  "enviar_prompt"  — { terminal_id, prompt } → tipea la tarea/mensaje en una
-                     terminal VIVA y LIBRE. Es TU herramienta para "decile a
-                     X que...", fixes sueltos o re-instruir a un agente que
-                     ya existe. El prompt sigue la misma plantilla que la
-                     `tarea`. Podés emitir varias (una por terminal).
-                     Con `es_respuesta: true` el prompt es la RESPUESTA a la
-                     pregunta que esa terminal tiene en pantalla (❓ ESPERANDO
-                     RESPUESTA): se tipea tal cual ("y", "2", "usá JWT"), sin
-                     envoltorio. Solo vale para una terminal que espera.
+══════════════════════════════════════════════════════════════════════
+CONTEXT YOU RECEIVE EVERY TURN
+══════════════════════════════════════════════════════════════════════
 
-Cerrar una terminal no es cerrar el preview:
-  • "cerrá la terminal" / "matá el agente X" / "borrá ese Claude"
-      → close_terminal (con terminal_id) o close_all
-  • "cerrá el servidor" / "apagá el preview" / "matá el puerto 8081" /
-    "bajá el servidor" / "cerrá la pestaña del preview"
-      → stop_preview (NO close_terminal)
+You receive the thread's REAL conversation (previous turns are included:
+"now add X" refers to what was discussed before). The current message may
+come preceded by system blocks:
+  [Current state] — each terminal with its LIVE state: 🟢 working / ⚪
+                    idle / ⏳ starting (and for how long), ❓ WAITING
+                    FOR AN ANSWER (there is a question on its screen),
+                    💀 DOWN (its CLI is not running), FREE or busy; if
+                    you launched it (and for which order), the task it
+                    was given, the files it edited (🔒 = owned), its
+                    last close (TASK_* + reason), its dev servers and
+                    the last lines of its SCREEN.
+  [Project] — path, root files, git branch, what is uncommitted and
+                    the latest commits (what has already been done).
+  [Project guide] — intro + sections of the project's CLAUDE.md: its
+                    rules override your preferences. Read the file
+                    with Read if you need a section in detail.
+  [Project map] — detected stack + real folder tree with file counts
+                    and each folder's purpose. It is YOUR source for
+                    the `archivos` and the paths of each task: ALWAYS
+                    use folders/files that exist here.
+  [Events] — the latest TASK_DONE/BLOCKED/ERROR of the project, with reason.
+  [Coordination] — pending permissions, reservations and file conflicts
+                    between agents.
+  [Dev servers] — every live server and which terminal started it.
+  [Active skills] — plugins/skills loaded in the project (when applicable).
+  [Relevant memory for this request] — project memories that touch the request.
 
-Si [Preview activo] aparece en el contexto, sabés exactamente qué URL hay
-para apagar. Si el usuario te pasa una URL/puerto y matchea con la del
-[Preview activo], usás stop_preview sin dudar. Si NO matchea, decile que
-ese puerto no lo lanzó JARVIS.
+Use them to:
+  • REUSE free terminals instead of creating new ones (enviar_prompt).
+    NEVER send work to a busy terminal.
+  • If a terminal is WAITING FOR AN ANSWER, its screen shows the
+    question: if the user answers it, pass it along with enviar_prompt +
+    es_respuesta; if not, tell the user.
+  • Diagnose a block by reading its reason and the agent's screen
+    BEFORE re-instructing it.
+  • Not assign files another agent is editing (🔒 / [Coordination])
+    nor redo what is already in the latest commits.
+  • Respect the stack, the skills' conventions and the project guide.
+  • Answer status questions with precision: which agents you launched,
+    which already closed (TASK_DONE) and which preview is live in
+    [Dev servers].
+       Bad:  "What can I help you with?"
+       Good: "Notes is ready on main. Preview at localhost:5173. Tests next?"
 
-ia_type válidos: "claude", "codex", "gemini", "opencode", "qwen",
+If you receive an IMAGE: briefly describe what you see (in 1 line) and
+base the plan on that (e.g. "I see a login mockup with email + password +
+button. Launching an agent to implement it.").
+
+══════════════════════════════════════════════════════════════════════
+HOW YOU RESPOND
+══════════════════════════════════════════════════════════════════════
+
+Your FINAL answer must be ONLY a JSON object — no fences, no text around
+it — with: 'message' (text to the user, Jarvis tone, comes FIRST) and
+'actions' (array; use [{"type":"none"}] in a conversational answer). The
+structure is validated by a JSON Schema — you focus on getting each
+field's SEMANTICS right (below).
+
+Valid actions[].type (NOTHING ELSE):
+  "none"           — do nothing operational
+  "spawn_terminal" — { name, ia_type, tarea, archivos } → launches ONE
+                     agent and hands it its task as soon as its CLI is
+                     ready. It is YOUR tool to split work among new
+                     agents (one action per agent).
+                     Without `tarea` → { name, ia_type, count }: opens
+                     empty terminals (the user will drive them by hand).
+  "close_terminal" — { terminal_id }  → kills the agent's tmux session
+  "close_all"      — no args         → kills all the project's terminals
+                                       (and the preview too, if it was up)
+  "stop_preview"   — no args        → shuts down the active preview server.
+                                       It is a separate process from the
+                                       terminals.
+  "enviar_prompt"  — { terminal_id, prompt } → types the task/message into
+                     a LIVE and FREE terminal. It is YOUR tool for "tell
+                     X to...", loose fixes or re-instructing an agent
+                     that already exists. The prompt follows the same
+                     template as the `tarea`. You may emit several (one
+                     per terminal).
+                     With `es_respuesta: true` the prompt is the ANSWER
+                     to the question that terminal has on screen (❓
+                     WAITING FOR AN ANSWER): it is typed as-is ("y",
+                     "2", "use JWT"), with no wrapper. Only valid for a
+                     terminal that is waiting.
+
+Closing a terminal is not closing the preview:
+  • "close the terminal" / "kill agent X" / "delete that Claude"
+      → close_terminal (with terminal_id) or close_all
+  • "close the server" / "shut down the preview" / "kill port 8081" /
+    "take the server down" / "close the preview tab"
+      → stop_preview (NOT close_terminal)
+
+If [Active preview] appears in the context, you know exactly which URL
+can be stopped. If the user gives you a URL/port and it matches the one
+in [Active preview], use stop_preview without hesitation. If it does
+NOT match, tell them JARVIS did not launch that port.
+
+Valid ia_type: "claude", "codex", "gemini", "opencode", "qwen",
 "antigravity", "grok", "manual"
 
-Máximo __MAX_TERMINALES__ terminales totales (activas + nuevas). Si la orden
-necesita más, avisá y proponé reusar las existentes o fasear el trabajo.
+Maximum __MAX_TERMINALES__ terminals in total (active + new). If the
+order needs more, say so and propose reusing the existing ones or
+phasing the work.
 
 ══════════════════════════════════════════════════════════════════════
-EJEMPLOS CONCRETOS (estos son los outputs reales esperados)
+CONCRETE EXAMPLES (these are the real expected outputs)
 ══════════════════════════════════════════════════════════════════════
 
-[1] CONVERSACIONAL — saludo / pregunta de capacidades
-Usuario: "¿qué podés hacer?"
-{"message":"Lanzo agentes de Claude/Codex/Gemini sobre la rama main y les reparto el trabajo en paralelo. Decime qué construimos, señor.","actions":[{"type":"none"}]}
+[1] CONVERSATIONAL — greeting / capability question
+User: "what can you do?"
+{"message":"I launch Claude/Codex/Gemini agents on the main branch and split the work in parallel. Tell me what we are building, sir.","actions":[{"type":"none"}]}
 
-[2] OPERATIVA SIMPLE — abrir terminales vacías
-Usuario: "abrí 2 claude"
-{"message":"Dos Claude listos.","actions":[{"type":"spawn_terminal","name":"Claude Code","ia_type":"claude","count":2}]}
+[2] SIMPLE OPERATION — open empty terminals
+User: "open 2 claude"
+{"message":"Two Claude instances ready.","actions":[{"type":"spawn_terminal","name":"Claude Code","ia_type":"claude","count":2}]}
 
-[3] UN AGENTE — feature contenida
-Usuario: "agregale al backend un endpoint /api/health"
-{"message":"De acuerdo. Un agente sobre plotspace/routers/.","actions":[{"type":"spawn_terminal","name":"Backend","ia_type":"claude","archivos":["plotspace/routers/health.py","plotspace/main.py"],"tarea":"OBJETIVO: crear GET /api/health que devuelva {ok: true, timestamp: ISO8601}. PERMITIDO editar: plotspace/routers/health.py (nuevo), plotspace/main.py (solo para registrar el router). PROHIBIDO tocar cualquier otro archivo. CRITERIO DE ÉXITO: un test con TestClient de GET /api/health devuelve 200 con el JSON correcto."}]}
-(los paths salen del [Mapa del proyecto] del contexto — en otro proyecto serían otros)
+[3] ONE AGENT — contained feature
+User: "add a /api/health endpoint to the backend"
+{"message":"Very well. One agent on plotspace/routers/.","actions":[{"type":"spawn_terminal","name":"Backend","ia_type":"claude","archivos":["plotspace/routers/health.py","plotspace/main.py"],"tarea":"OBJECTIVE: create GET /api/health returning {ok: true, timestamp: ISO8601}. ALLOWED to edit: plotspace/routers/health.py (new), plotspace/main.py (only to register the router). FORBIDDEN to touch any other file. SUCCESS CRITERION: a TestClient test of GET /api/health returns 200 with the right JSON."}]}
+(the paths come from that context's [Project map] — another project would have different ones)
 
-[4] DOS AGENTES EN PARALELO — frontend/backend disjuntos
-Usuario: "construí un módulo de notas: API + UI simple"
-{"message":"De acuerdo. Dos agentes en paralelo: backend y frontend.","actions":[{"type":"spawn_terminal","name":"Backend","ia_type":"claude","archivos":["plotspace/routers/notes.py","plotspace/main.py","plotspace/core/database.py"],"tarea":"OBJETIVO: CRUD /api/notes con SQLite (tabla notes: id, contenido, created_at). PERMITIDO editar: plotspace/routers/notes.py (nuevo), plotspace/main.py (solo registrar router), plotspace/core/database.py (solo agregar CREATE TABLE notes). PROHIBIDO: frontend/*, otros routers. CRITERIO DE ÉXITO: GET/POST/DELETE /api/notes responden 200 con JSON."},{"type":"spawn_terminal","name":"Frontend","ia_type":"claude","archivos":["frontend/notes/*"],"tarea":"OBJETIVO: UI que consume /api/notes (asumí que ese endpoint existe). Lista + crear + borrar, respetando la estructura y convenciones que ya tiene el frontend del proyecto. PERMITIDO editar: frontend/notes/* (nuevo). PROHIBIDO: plotspace/*, todo lo del otro agente. CRITERIO DE ÉXITO: la página de notas muestra la lista, crear y borrar funcionan."}]}
+[4] TWO AGENTS IN PARALLEL — disjoint frontend/backend
+User: "build a notes module: API + simple UI"
+{"message":"Very well. Two agents in parallel: backend and frontend.","actions":[{"type":"spawn_terminal","name":"Backend","ia_type":"claude","archivos":["plotspace/routers/notes.py","plotspace/main.py","plotspace/core/database.py"],"tarea":"OBJECTIVE: CRUD /api/notes with SQLite (notes table: id, content, created_at). ALLOWED to edit: plotspace/routers/notes.py (new), plotspace/main.py (register router only), plotspace/core/database.py (add CREATE TABLE notes only). FORBIDDEN: frontend/*, other routers. SUCCESS CRITERION: GET/POST/DELETE /api/notes respond 200 with JSON."},{"type":"spawn_terminal","name":"Frontend","ia_type":"claude","archivos":["frontend/notes/*"],"tarea":"OBJECTIVE: UI that consumes /api/notes (assume the endpoint exists). List + create + delete, respecting the structure and conventions the project's frontend already has. ALLOWED to edit: frontend/notes/* (new). FORBIDDEN: plotspace/*, everything of the other agent. SUCCESS CRITERION: the notes page shows the list, create and delete work."}]}
 
-[5] TRABAJO SECUENCIAL — lanzar la primera parte y decir qué sigue
-Usuario: "implementá auth con JWT y después escribile tests"
-{"message":"De acuerdo. Arranco la implementación; cuando cierre, lanzo los tests.","actions":[{"type":"spawn_terminal","name":"Auth","ia_type":"claude","archivos":["plotspace/auth/*","plotspace/main.py"],"tarea":"OBJETIVO: endpoints POST /auth/register, POST /auth/login, GET /auth/me con JWT (usá pyjwt). PERMITIDO editar: plotspace/auth/* (nueva carpeta), plotspace/main.py (registrar router). PROHIBIDO: plotspace/tests/*. CRITERIO DE ÉXITO: register crea user, login devuelve token, /me con Authorization Bearer devuelve el user."}]}
+[5] SEQUENTIAL WORK — launch the first part and say what comes next
+User: "implement JWT auth and then write tests for it"
+{"message":"Very well. Starting the implementation; when it closes, I'll launch the tests.","actions":[{"type":"spawn_terminal","name":"Auth","ia_type":"claude","archivos":["plotspace/auth/*","plotspace/main.py"],"tarea":"OBJECTIVE: POST /auth/register, POST /auth/login, GET /auth/me endpoints with JWT (use pyjwt). ALLOWED to edit: plotspace/auth/* (new folder), plotspace/main.py (register router). FORBIDDEN: plotspace/tests/*. SUCCESS CRITERION: register creates a user, login returns a token, /me with Authorization Bearer returns the user."}]}
 
-[6] PETICIÓN AMBIGUA — preguntar UNA cosa
-Usuario: "agregá login"
-{"message":"¿Sesiones con JWT o con cookies HTTP-only?","actions":[{"type":"none"}]}
+[6] AMBIGUOUS REQUEST — ask ONE thing
+User: "add login"
+{"message":"JWT sessions or HTTP-only cookie sessions?","actions":[{"type":"none"}]}
 
-[7] FALTA INFO PERO ES ASUMIBLE — avisar la asunción
-Usuario: "ponele tests al módulo de pagos"
-{"message":"De acuerdo. Asumo pytest. Decime si querés otro framework.","actions":[{"type":"spawn_terminal","name":"Tests","ia_type":"claude","archivos":["plotspace/tests/test_payments.py"],"tarea":"OBJETIVO: tests pytest cubriendo plotspace/payments/*. Leé los archivos primero. PERMITIDO editar: plotspace/tests/test_payments.py (nuevo). PROHIBIDO modificar plotspace/payments/*. CRITERIO DE ÉXITO: happy path + errores de cada función pública, pytest verde."}]}
+[7] MISSING INFO BUT ASSUMABLE — state the assumption
+User: "add tests to the payments module"
+{"message":"Very well. Assuming pytest. Say the word if you want another framework.","actions":[{"type":"spawn_terminal","name":"Tests","ia_type":"claude","archivos":["plotspace/tests/test_payments.py"],"tarea":"OBJECTIVE: pytest tests covering plotspace/payments/*. Read the files first. ALLOWED to edit: plotspace/tests/test_payments.py (new). FORBIDDEN to modify plotspace/payments/*. SUCCESS CRITERION: happy path + error cases of each public function, pytest green."}]}
 
-[8] CERRAR PREVIEW SERVER (NO confundir con cerrar terminal)
-Contexto: [Preview activo]\n  Servidor de preview corriendo en http://localhost:8081/
-Usuario: "cerrá el servidor del frontend" o "matá el puerto 8081"
-{"message":"Preview cerrado.","actions":[{"type":"stop_preview"}]}
+[8] STOP PREVIEW SERVER (do NOT confuse with closing a terminal)
+Context: [Active preview]\\n  Preview server running at http://localhost:8081/
+User: "close the frontend server" or "kill port 8081"
+{"message":"Preview closed.","actions":[{"type":"stop_preview"}]}
 
-[9] DESTRABAR UN AGENTE BLOQUEADO
-Contexto: [Estado actual]\n  - ID 42: Auth (claude) — ⚪ quieta hace 2 min — LIBRE\n    último cierre: TASK_BLOCKED hace 2 min: necesito saber si la tabla users ya existe o la creo
-Usuario: "la tabla no existe, que la cree"
-{"message":"Le paso la info a Auth.","actions":[{"type":"enviar_prompt","terminal_id":42,"prompt":"CONTINUACIÓN: la tabla users no existe — creala vos en plotspace/database.py con columnas id, email UNIQUE, password_hash, created_at. Después seguí con auth como estabas. PERMITIDO: plotspace/auth/*, plotspace/database.py (solo agregar la tabla), plotspace/main.py. PROHIBIDO: plotspace/tests/*."}]}
+[9] UNBLOCK A BLOCKED AGENT
+Context: [Current state]\\n  - ID 42: Auth (claude) — ⚪ idle for 2 min — free\\n    last close: TASK_BLOCKED 2 min ago: I need to know if the users table already exists or I should create it
+User: "the table does not exist, have it create it"
+{"message":"Passing the info to Auth.","actions":[{"type":"enviar_prompt","terminal_id":42,"prompt":"CONTINUATION: the users table does not exist — create it yourself in plotspace/database.py with columns id, UNIQUE email, password_hash, created_at. Then continue with auth as you were. ALLOWED: plotspace/auth/*, plotspace/database.py (add the table only), plotspace/main.py. FORBIDDEN: plotspace/tests/*."}]}
 
-[10] PROMPT DIRECTO A UNA TERMINAL VIVA
-Contexto: [Estado actual]\n  - ID 151: Claude Code #2 (claude) — ⚪ quieta hace 12 min — LIBRE
-Usuario: "decile a la claude libre que pula el diseño de la landing"
-{"message":"Le mando la tarea a Claude Code #2.","actions":[{"type":"enviar_prompt","terminal_id":151,"prompt":"OBJETIVO: pulir el diseño de la landing. Trabajá sobre los archivos de la landing que muestra el mapa del proyecto (HTML + CSS). CRITERIO DE ÉXITO: jerarquía tipográfica consistente, espaciado uniforme y paleta cohesiva, sin romper el layout existente."}]}
+[10] DIRECT PROMPT TO A LIVE TERMINAL
+Context: [Current state]\\n  - ID 151: Claude Code #2 (claude) — ⚪ idle for 12 min — free
+User: "tell the free claude to polish the landing design"
+{"message":"Sending the task to Claude Code #2.","actions":[{"type":"enviar_prompt","terminal_id":151,"prompt":"OBJECTIVE: polish the landing design. Work on the landing files shown by the project map (HTML + CSS). SUCCESS CRITERION: consistent typographic hierarchy, uniform spacing and a cohesive palette, without breaking the existing layout."}]}
 
 ══════════════════════════════════════════════════════════════════════
-RECORDATORIO FINAL
+FINAL REMINDER
 ══════════════════════════════════════════════════════════════════════
 
-Tu ÚLTIMO mensaje es SIEMPRE el objeto JSON de respuesta, con
-'message' primero en tono Jarvis. Antes de emitirlo, revisá mentalmente:
-tono Jarvis, archivos disjuntos y sacados del mapa real, terminales libres
-reusadas antes de spawnear, una tarea autosuficiente por agente.
+Your LAST message is ALWAYS the JSON answer object, with 'message' first
+in Jarvis tone. Before emitting it, mentally check: Jarvis tone, disjoint
+files taken from the real map, free terminals reused before spawning, one
+self-contained task per agent.
 """.replace('__MAX_TERMINALES__', str(MAX_TERMINALES))
 
 # ─── Modelos ───────────────────────────────────────────────────────────────────
@@ -313,11 +322,9 @@ reusadas antes de spawnear, una tarea autosuficiente por agente.
 def _bloque_idioma() -> str:
     """Directiva de idioma por turno (no en el SYSTEM_PROMPT: así el prompt
     fijo sigue siendo cacheable y el cambio de idioma aplica al instante)."""
-    if idioma_ui.actual() == 'en':
-        return ("[Idioma]\nEnglish — the user's interface is in English: write your "
-                "`message` in English (address the user as \"sir\"). Tasks for the "
-                "agents can stay in whatever language fits the project.")
-    return "[Idioma]\nEspañol — la interfaz del usuario está en español: tu `message` va en español."
+    return ("[Language]\nEnglish — the user's interface is in English: write your "
+            "`message` in English (address the user as \"sir\"). Tasks for the "
+            "agents can stay in whatever language fits the project.")
 
 
 class ChatRequest(BaseModel):
@@ -372,7 +379,7 @@ async def listar_historial(project_id: int):
         resultado.append({
             'id':         r['id'],
             'thread_id':  r['thread_id'],
-            'preview':    preview or '(sin mensajes)',
+            'preview':    preview or '(no messages)',
             'created_at': r['created_at'],
             'updated_at': r['updated_at'],
             'count':      len(mensajes),
@@ -396,7 +403,7 @@ async def obtener_thread(project_id: int, thread_id: str):
         conn.close()
 
     if not row:
-        raise HTTPException(status_code=404, detail="Thread no encontrado")
+        raise HTTPException(status_code=404, detail="Thread not found")
     try:
         mensajes = json.loads(row['mensajes'])
     except (json.JSONDecodeError, TypeError):
@@ -420,7 +427,7 @@ async def guardar_thread(project_id: int, thread: HistorialThread):
         cursor = conn.cursor()
         cursor.execute('SELECT id FROM projects WHERE id = ?', (project_id,))
         if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         cursor.execute(
             'SELECT id FROM orquestador_historial WHERE project_id = ? AND thread_id = ?',
@@ -467,7 +474,7 @@ async def eliminar_thread(project_id: int, thread_id: str):
             (project_id, thread_id)
         )
         if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Thread no encontrado")
+            raise HTTPException(status_code=404, detail="Thread not found")
         conn.commit()
     finally:
         conn.close()
@@ -487,11 +494,11 @@ RESPONDER_SCHEMA = {
     "properties": {
         "message": {
             "type": "string",
-            "description": "Texto al usuario, tono Jarvis (conciso, directo, sin relleno). Va PRIMERO. Se streamea token a token.",
+            "description": "Text to the user, Jarvis tone (concise, direct, no filler). Comes FIRST. Streamed token by token.",
         },
         "actions": {
             "type": "array",
-            "description": "Acciones operativas. Usá [{\"type\":\"none\"}] en una respuesta conversacional. Para trabajo de código: un spawn_terminal CON tarea por agente, o enviar_prompt a una terminal LIBRE.",
+            "description": "Operational actions. Use [{\"type\":\"none\"}] in a conversational answer. For coding work: one spawn_terminal WITH tarea per agent, or enviar_prompt to a FREE terminal.",
             "items": {
                 "type": "object",
                 "properties": {
@@ -499,14 +506,14 @@ RESPONDER_SCHEMA = {
                         "type": "string",
                         "enum": ["none", "spawn_terminal", "close_terminal", "close_all", "stop_preview", "enviar_prompt"],
                     },
-                    "name": {"type": "string", "description": "Solo spawn_terminal: nombre de la terminal (ej 'Backend')."},
+                    "name": {"type": "string", "description": "spawn_terminal only: terminal name (e.g. 'Backend')."},
                     "ia_type": {"type": "string", "enum": _IA_TYPES, "description": "Solo spawn_terminal."},
-                    "count": {"type": "integer", "description": "Solo spawn_terminal SIN tarea: cuántas terminales vacías. Con tarea se ignora (1 agente por action)."},
-                    "tarea": {"type": "string", "description": "Solo spawn_terminal: prompt AUTOSUFICIENTE del agente siguiendo la PLANTILLA (OBJETIVO, ARCHIVOS PERMITIDOS/PROHIBIDOS, CRITERIO DE ÉXITO, PREVIEW si aplica). Jarvis se lo entrega apenas su CLI esté listo. El cierre (sentinel) lo agrega el sistema: no lo incluyas."},
-                    "archivos": {"type": "array", "items": {"type": "string"}, "description": "Solo spawn_terminal con tarea: paths/patrones EXCLUSIVOS de este agente (del [Mapa del proyecto]). Dos agentes JAMÁS comparten archivos."},
-                    "terminal_id": {"type": "integer", "description": "close_terminal: id a cerrar. enviar_prompt: id de la terminal destino."},
-                    "prompt": {"type": "string", "description": "Solo enviar_prompt: la tarea/mensaje que se tipea en esa terminal. Autosuficiente, con archivos/carpetas concretos del [Mapa del proyecto]."},
-                    "es_respuesta": {"type": "boolean", "description": "Solo enviar_prompt: true si el prompt RESPONDE la pregunta que la terminal tiene en pantalla (❓ ESPERANDO RESPUESTA) — se tipea tal cual."},
+                    "count": {"type": "integer", "description": "spawn_terminal WITHOUT tarea only: how many empty terminals. Ignored with tarea (1 agent per action)."},
+                    "tarea": {"type": "string", "description": "spawn_terminal only: the agent's SELF-CONTAINED prompt following the TEMPLATE (OBJECTIVE, ALLOWED/FORBIDDEN FILES, SUCCESS CRITERION, PREVIEW when applicable). Jarvis delivers it as soon as its CLI is ready. The closing (sentinel) is added by the system: do not include it."},
+                    "archivos": {"type": "array", "items": {"type": "string"}, "description": "spawn_terminal with tarea only: paths/patterns EXCLUSIVE to this agent (from the [Project map]). Two agents NEVER share files."},
+                    "terminal_id": {"type": "integer", "description": "close_terminal: id to close. enviar_prompt: id of the target terminal."},
+                    "prompt": {"type": "string", "description": "enviar_prompt only: the task/message typed into that terminal. Self-contained, with concrete files/folders from the [Project map]."},
+                    "es_respuesta": {"type": "boolean", "description": "enviar_prompt only: true if the prompt ANSWERS the question the terminal has on screen (❓ WAITING FOR AN ANSWER) — typed as-is."},
                 },
                 "required": ["type"],
             },
@@ -571,11 +578,11 @@ def _sanitizar_respuesta(parsed, raw_text):
     una terminal vacía, sin `archivos`) y con tarea `archivos` se normaliza a lista de strings.
     Pura/testeable."""
     if not isinstance(parsed, dict):
-        return ((raw_text if isinstance(raw_text, str) and raw_text.strip() else "Procesado."),
+        return ((raw_text if isinstance(raw_text, str) and raw_text.strip() else "Processed."),
                 [{"type": "none"}])
     msg = parsed.get("message")
     if not isinstance(msg, str) or not msg.strip():
-        msg = raw_text if isinstance(raw_text, str) and raw_text.strip() else "Procesado."
+        msg = raw_text if isinstance(raw_text, str) and raw_text.strip() else "Processed."
     acts = parsed.get("actions")
     if not isinstance(acts, list):
         acts = []
@@ -609,7 +616,7 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
                                     getattr(usage, 'input_tokens', 0) or 0,
                                     getattr(usage, 'output_tokens', 0) or 0)
     except Exception as e:
-        print(f'[uso] no pude registrar uso: {e}')
+        print(f'[usage] could not record usage: {e}')
 
     # Con tool-use el raw es JSON PURO (re-serializado del tool input) → parsear DIRECTO.
     # NO strippear fences acá: si 'message' contiene un ``` de código (Jarvis explicándole
@@ -649,9 +656,8 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
                            or (a['type'] == 'spawn_terminal' and a.get('tarea')))]
         if len(actions) != antes:
             actions = actions or [{"type": "none"}]
-            jarvis_message = (jarvis_message + L(
-                " (me corté por longitud, señor — repetime la orden más acotada).",
-                " (I got cut off by length, sir — give me the order again, narrower).")).strip()
+            jarvis_message = (jarvis_message +
+                " (I got cut off by length, sir — give me the order again, narrower).").strip()
 
     created_terminals = []
     closed_all        = False
@@ -682,11 +688,9 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
                     orquestacion, orquestacion_ts)
                 origen_escrito = True
             elif tarea:
-                jarvis_message = (jarvis_message + L(
-                    f" ⚠️ No lancé a {action.get('name') or 'un agente'}: tope de "
-                    f"{MAX_TERMINALES} terminales.",
+                jarvis_message = (jarvis_message +
                     f" ⚠️ I didn't launch {action.get('name') or 'an agent'}: "
-                    f"{MAX_TERMINALES}-terminal limit reached.")).strip()
+                    f"{MAX_TERMINALES}-terminal limit reached.").strip()
             created_terminals.extend(nuevas)
 
         elif atype == "close_all":
@@ -694,12 +698,10 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
             if trabajando:
                 # Guard: hay agentes a mitad de tarea → no se cerró NADA (todo-o-
                 # nada) y closed_all queda False (true borra TODAS las cards).
-                jarvis_message = (jarvis_message + L(
-                    " ⚠️ No cerré nada: {q} está(n) trabajando ahora mismo. Si igual "
-                    "querés cerrarlas, repetime la orden.",
+                jarvis_message = (jarvis_message +
                     " ⚠️ I didn't close anything: {q} is/are working right now. If you "
-                    "still want them closed, repeat the order.",
-                ).replace('{q}', ", ".join(trabajando))).strip()
+                    "still want them closed, repeat the order."
+                ).replace('{q}', ", ".join(trabajando)).strip()
             else:
                 _detener_preview_si_existe(req.project_id)
                 closed_all = True
@@ -709,8 +711,8 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
             if tid:
                 motivo = await _cerrar_terminal(tid, req.project_id)
                 if motivo:
-                    jarvis_message = (jarvis_message + L(f" ⚠️ Ojo: {motivo}.",
-                                                         f" ⚠️ Heads up: {motivo}.")).strip()
+                    jarvis_message = (jarvis_message +
+                                      f" ⚠️ Heads up: {motivo}.").strip()
 
         elif atype == "stop_preview":
             _detener_preview_si_existe(req.project_id)
@@ -731,11 +733,10 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
                                                    req.project_id, fila)
                     motivo = _motivo_rechazo_envio(info, es_respuesta)
                 except Exception as e:
-                    print(f'[enviar_prompt] sin estado vivo de #{tid}: {e}')
+                    print(f'[enviar_prompt] no live state for #{tid}: {e}')
             if motivo:
-                jarvis_message = (jarvis_message + L(
-                    f" ⚠️ No envié el prompt: {motivo}.",
-                    f" ⚠️ I didn't send the prompt: {motivo}.")).strip()
+                jarvis_message = (jarvis_message +
+                    f" ⚠️ I didn't send the prompt: {motivo}.").strip()
             else:
                 texto = action['prompt'].strip()
                 if es_respuesta:
@@ -743,11 +744,9 @@ async def _procesar_respuesta_orquestador(raw_text, usage, project, req, termina
                 else:
                     ok = await send_to_agent(tid, texto + _cierre_prompt_directo(tid))
                 if ok is False:
-                    jarvis_message = (jarvis_message + L(
-                        f" ⚠️ No pude entregar el prompt a la terminal #{tid} (su "
-                        "sesión no responde).",
+                    jarvis_message = (jarvis_message +
                         f" ⚠️ I couldn't deliver the prompt to terminal #{tid} (its "
-                        "session isn't responding).")).strip()
+                        "session isn't responding).").strip()
                 else:
                     _logs.evento('prompt_directo', terminal_id=tid,
                                  project_id=req.project_id,
@@ -804,14 +803,12 @@ def _validar_enviar_prompt(action: dict, activas_ids: set):
         try:
             tid = int(tid)
         except (TypeError, ValueError):
-            return None, L('falta un terminal_id válido', 'a valid terminal_id is missing')
+            return None, 'a valid terminal_id is missing'
     prompt = action.get('prompt')
     if not isinstance(prompt, str) or not prompt.strip():
-        return None, L(f'falta el prompt para la terminal #{tid}',
-                       f'the prompt for terminal #{tid} is missing')
+        return None, f'the prompt for terminal #{tid} is missing'
     if tid not in activas_ids:
-        return None, L(f'la terminal #{tid} no está activa en este proyecto',
-                       f'terminal #{tid} is not active in this project')
+        return None, f'terminal #{tid} is not active in this project'
     return tid, None
 
 
@@ -822,13 +819,10 @@ def _motivo_rechazo_envio(info: dict, es_respuesta: bool) -> str:
     if info.get('estado') in ('caido', 'sin_sesion'):
         return motivo_no_libre(info)
     if es_respuesta:
-        return '' if info.get('esperando') else L('no tiene ninguna pregunta en pantalla',
-                                                   'it has no question on screen')
+        return '' if info.get('esperando') else 'it has no question on screen'
     if info.get('esperando'):
-        return L('tiene una pregunta en pantalla esperando respuesta — contestala '
-                 'con es_respuesta o avisale al usuario',
-                 'it has a question on screen waiting for an answer — answer it '
-                 'with es_respuesta or tell the user')
+        return ('it has a question on screen waiting for an answer — answer it '
+                'with es_respuesta or tell the user')
     return motivo_no_libre(info)
 
 
@@ -839,13 +833,13 @@ def _cierre_prompt_directo(terminal_id: int) -> str:
     mínimo: motivo OBLIGATORIO al fallar (materia prima de las lecciones) y
     memorias_usadas (medición de lectura de la memoria compartida)."""
     return (
-        "\n\nAl terminar, señalá tu cierre: "
+        "\n\nWhen you finish, signal your closure: "
         f"mkdir -p .jarvis/signals && printf '%s' '{{\"estado\":\"done\",\"motivo\":\"\","
         f"\"memorias_usadas\":[]}}' > .jarvis/signals/terminal_{terminal_id}.json "
-        "(estado blocked o error si no pudiste — el motivo es OBLIGATORIO y concreto; "
-        "en memorias_usadas listá los slugs de .jarvis/memory/ que te sirvieron; si "
-        "el tropiezo se podía prevenir con una regla corta, guardá además una "
-        "memoria con tags [leccion])."
+        "(use estado blocked or error if you couldn't — the motivo is MANDATORY and "
+        "concrete; in memorias_usadas list the .jarvis/memory/ slugs that helped "
+        "you; if the setback could have been prevented by a short rule, also save "
+        "a memory tagged [leccion])."
     )
 
 
@@ -914,16 +908,16 @@ def _system_con_cache() -> list:
 _BLOQUE_OJOS = """
 
 ══════════════════════════════════════════════════════════════════════
-OJOS PROPIOS (tools de lectura)
+DIRECT CODEBASE INSPECTION (read-only tools)
 ══════════════════════════════════════════════════════════════════════
 
-Tenés Read/Glob/Grep sobre la carpeta del proyecto (SOLO lectura — jamás
-edites, crees ni ejecutes nada). Usalos ÚNICAMENTE cuando el pedido lo
-amerite: planificar agentes sobre código que no conocés, verificar que un
-archivo exista antes de asignarlo, o entender una estructura que el
-[Mapa del proyecto] no alcanza a mostrar. Cada lectura suma latencia al chat:
-leé solo lo que cambia el plan, y para saludos/preguntas simples respondé
-directo sin tocar ninguna tool.
+You have Read/Glob/Grep over the project folder (READ-ONLY — never edit,
+create or run anything). Use them ONLY when the request warrants it:
+planning agents over code you do not know, verifying that a file exists
+before assigning it, or understanding a structure the [Project map] does
+not fully show. Every read adds latency to the chat: read only what
+changes the plan, and for greetings/simple questions answer directly
+without touching any tool.
 """
 
 
@@ -947,10 +941,8 @@ def _guard_api_key() -> str:
     if not api_key:
         raise HTTPException(status_code=409, detail={
             "error": "no_api_key",
-            "message": L("Configurá ANTHROPIC_API_KEY (plotspace/.env) para usar el chat "
-                         "de Jarvis. Los agentes en terminales (BYOK) no la necesitan.",
-                         "Set ANTHROPIC_API_KEY (plotspace/.env) to use the Jarvis chat. "
-                         "Agents in terminals (BYOK) don't need it."),
+            "message": ("Set ANTHROPIC_API_KEY (plotspace/.env) to use the Jarvis chat. "
+                        "Agents in terminals (BYOK) don't need it."),
         })
     return api_key
 
@@ -981,14 +973,14 @@ def _bloque_memoria_para_orden(project_ruta: str, mensaje: str) -> str:
         rel = relevantes(project_ruta, _rutas_en_texto(mensaje), mensaje or '',
                          k=5, usos=usos_registrados())
     except Exception as e:
-        print(f'[orquestador] recall de memorias falló: {e}')
+        print(f'[orchestrator] memory recall failed: {e}')
         return ''
     if not rel:
         return ''
-    lineas = ["[Memoria relevante al pedido — tenela en cuenta al planear "
-              "(reglas, lápidas de features eliminados, gotchas):]"]
+    lineas = ["[Relevant memory for this request — account for it while "
+              "planning (rules, tombstones of removed features, gotchas):]"]
     for m in rel:
-        marca = ' ⚰️LÁPIDA(no reintroducir)' if m['estado'] == 'lapida' else ''
+        marca = ' ⚰️TOMBSTONE (do not reintroduce)' if m['estado'] == 'lapida' else ''
         lineas.append(f"  • {m['titulo']}{marca} — .jarvis/memory/{m['slug']}.md")
         if m.get('resumen') and m['resumen'].lower() != m['titulo'].lower():
             lineas.append(f"      ↳ {m['resumen']}")
@@ -1023,7 +1015,7 @@ def _formatear_dev_servers(project_id: int) -> str:
         return ''
     lineas = []
     for sv in servers[:10]:
-        quien = (f" — levantado por #{sv['terminal_id']} {sv.get('terminal_nombre') or ''}"
+        quien = (f" — started by #{sv['terminal_id']} {sv.get('terminal_nombre') or ''}"
                  if sv.get('terminal_id') else '')
         lineas.append(f"  - {sv['url']}{quien}".rstrip())
     return '\n'.join(lineas)
@@ -1041,7 +1033,7 @@ async def _preparar_contexto_chat(req):
         cursor.execute('SELECT * FROM projects WHERE id = ?', (req.project_id,))
         project = cursor.fetchone()
         if not project:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
         project = dict(project)
 
         cursor.execute(
@@ -1059,8 +1051,8 @@ async def _preparar_contexto_chat(req):
         from plotspace.core import orq_contexto
         bloques = await orq_contexto.construir_bloques(project, terminals_activas)
     except Exception as e:
-        print(f'[orquestador] contexto enriquecido falló (sigo con lo mínimo): {e}')
-        bloques = [f"[Estado actual]\nTerminales activas: {len(terminals_activas)} — "
+        print(f'[orchestrator] enriched context failed (continuing with the minimum): {e}')
+        bloques = [f"[Current state]\nActive terminals: {len(terminals_activas)} — "
                    + ', '.join(f"ID {t['id']}: {t['nombre']} ({t['tipo_ia']})"
                                for t in terminals_activas)]
 
@@ -1070,17 +1062,17 @@ async def _preparar_contexto_chat(req):
         from plotspace.core.repo_map import bloque_mapa
         mapa = bloque_mapa(project.get('ruta') or '')
     except Exception as e:
-        print(f'[orquestador] repo_map falló (sigo sin mapa): {e}')
+        print(f'[orchestrator] repo_map failed (continuing without a map): {e}')
         mapa = ''
     if mapa:
-        bloques.append(f"[Mapa del proyecto]\n{mapa}")
+        bloques.append(f"[Project map]\n{mapa}")
 
     preview_url = _preview_url_activo(req.project_id)
     if preview_url:
         bloques.append(
-            f"[Preview activo]\n  Servidor de preview corriendo en {preview_url}\n"
-            f"  Para apagarlo usá la action 'stop_preview' (NO close_terminal — "
-            f"el preview NO es una terminal)."
+            f"[Active preview]\n  Preview server running at {preview_url}\n"
+            f"  To stop it use the 'stop_preview' action (NOT close_terminal — "
+            f"the preview is NOT a terminal)."
         )
     dev_str = _formatear_dev_servers(req.project_id)
     if dev_str:
@@ -1088,14 +1080,14 @@ async def _preparar_contexto_chat(req):
 
     skills_str = _formatear_skills_activas(req.project_id)
     if skills_str:
-        bloques.append(f"[Skills activas]\n{skills_str}")
+        bloques.append(f"[Active skills]\n{skills_str}")
 
     mem_str = _bloque_memoria_para_orden(project.get('ruta'), req.message)
     if mem_str:
         bloques.append(mem_str)
 
     bloques.append(_bloque_idioma())
-    bloques.append(f"[Orden]\n{req.message}")
+    bloques.append(f"[Request]\n{req.message}")
     msg_con_ctx = "\n\n".join(bloques)
 
     if ORQUESTADOR_MOTOR == 'api':
@@ -1124,8 +1116,8 @@ async def _preparar_contexto_chat(req):
         if req.image_base64:
             ruta_img = _guardar_imagen_temporal(req.image_base64, req.media_type)
             if ruta_img:
-                msg_con_ctx += (f"\n\n[Imagen adjunta del usuario guardada en "
-                                f"{ruta_img} — mirala con Read antes de responder]")
+                msg_con_ctx += (f"\n\n[Image attached by the user, saved at "
+                                f"{ruta_img} — look at it with Read before answering]")
         user_content = msg_con_ctx
         client = None
 
@@ -1149,7 +1141,7 @@ def _titulos_contexto(mensajes: list) -> list:
     titulos = []
     for t in _TITULO_BLOQUE_RE.findall(contenido or ''):
         t = t.split(' — ')[0].rstrip(':').strip()
-        if t and t != 'Orden' and t not in titulos:
+        if t and t != 'Request' and t not in titulos:
             titulos.append(t)
     return titulos
 
@@ -1162,12 +1154,9 @@ def _guard_cli():
     if not shutil.which(orq_cli.BIN):     # el MISMO binario que después se ejecuta
         raise HTTPException(status_code=409, detail={
             "error": "no_cli",
-            "message": L("El orquestador corre con tu suscripción de Claude vía "
-                         "el CLI `claude`, pero no lo encuentro en el PATH. "
-                         "Instalalo y logueá tu cuenta (o usá ORQUESTADOR_MOTOR=api).",
-                         "The orchestrator runs on your Claude subscription through "
-                         "the `claude` CLI, but I can't find it in PATH. "
-                         "Install it and log in (or use ORQUESTADOR_MOTOR=api)."),
+            "message": ("The orchestrator runs on your Claude subscription through "
+                        "the `claude` CLI, but I can't find it in PATH. "
+                        "Install it and log in (or use ORQUESTADOR_MOTOR=api)."),
         })
 
 
@@ -1184,7 +1173,7 @@ def _guardar_imagen_temporal(image_base64: str, media_type: str = None):
             f.write(base64.b64decode(image_base64))
         return ruta
     except Exception as e:
-        print(f'[orquestador] no pude guardar la imagen adjunta: {e}')
+        print(f"[orchestrator] couldn't save the attached image: {e}")
         return None
 
 
@@ -1196,27 +1185,19 @@ def _mensaje_error_orq(e) -> str:
     diag = orq_cli.diagnosticar(crudo)
     codigo = getattr(e, 'codigo', None) or diag['codigo']
     if codigo == 'login':
-        return L("Jarvis no tiene una sesión de Claude activa. Iniciá sesión en Ajustes → Cuentas "
-                 "(o corré `claude` en una terminal y usá /login).",
-                 "Jarvis has no active Claude session. Sign in under Settings → Accounts "
-                 "(or run `claude` in a terminal and use /login).")
+        return ("Jarvis has no active Claude session. Sign in under Settings → Accounts "
+                "(or run `claude` in a terminal and use /login).")
     if codigo == 'limite':
         r = diag.get('reset')
-        return L("La cuenta de Claude activa llegó a su límite de uso"
-                 + (f" (se libera {r})" if r else "")
-                 + ". Cambiá a otra cuenta en Ajustes → Cuentas o esperá a que se libere.",
-                 "The active Claude account hit its usage limit"
-                 + (f" (resets {r})" if r else "")
-                 + ". Switch to another account under Settings → Accounts or wait for the reset.")
+        return ("The active Claude account hit its usage limit"
+                + (f" (resets {r})" if r else "")
+                + ". Switch to another account under Settings → Accounts or wait for the reset.")
     if codigo == 'sobrecarga':
-        return L("Los servidores de Claude están saturados ahora mismo. Probá de nuevo en un rato.",
-                 "Claude's servers are overloaded right now. Try again in a bit.")
+        return "Claude's servers are overloaded right now. Try again in a bit."
     if codigo == 'no_instalado':
-        return L("Falta el CLI `claude`, que es con lo que Jarvis piensa. Instalalo desde el selector "
-                 "de terminales (Ctrl+\\) o con `npm i -g @anthropic-ai/claude-code`.",
-                 "The `claude` CLI is missing — it's what Jarvis thinks with. Install it from the "
-                 "terminal picker (Ctrl+\\) or with `npm i -g @anthropic-ai/claude-code`.")
-    return L("Orquestador (suscripción): ", "Orchestrator (subscription): ") + crudo
+        return ("The `claude` CLI is missing — it's what Jarvis thinks with. Install it from the "
+                "terminal picker (Ctrl+\\) or with `npm i -g @anthropic-ai/claude-code`.")
+    return "Orchestrator (subscription): " + crudo
 
 
 async def _consultar_cli(mensajes: list, project: dict):
@@ -1265,9 +1246,9 @@ async def chat_orquestador(req: ChatRequest):
         )
         raw_text = _texto_respuesta(response)
     except anthropic.AuthenticationError:
-        raise HTTPException(status_code=401, detail=L("ANTHROPIC_API_KEY inválida", "Invalid ANTHROPIC_API_KEY"))
+        raise HTTPException(status_code=401, detail="Invalid ANTHROPIC_API_KEY")
     except Exception as e:
-        raise HTTPException(status_code=502, detail=L("Error de la API de Claude: ", "Claude API error: ") + str(e))
+        raise HTTPException(status_code=502, detail="Claude API error: " + str(e))
 
     # Post-procesado (parse JSON + ejecutar actions + uso + STATE.md) en un
     # helper COMPARTIDO con /chat-stream, así no hay drift en la lógica crítica.
@@ -1341,7 +1322,7 @@ async def chat_orquestador_stream(req: ChatRequest):
                     resultado['texto'], usage_cli, project, req,
                     terminals_activas, stop_reason='end_turn')))
             except Exception as e:
-                yield sse({"type": "error", "detail": L("Error procesando la respuesta: ", "Error processing the response: ") + str(e)})
+                yield sse({"type": "error", "detail": "Error processing the response: " + str(e)})
                 return
             yield sse({"type": "done", **res})
             return
@@ -1371,10 +1352,10 @@ async def chat_orquestador_stream(req: ChatRequest):
                 stop = getattr(final, "stop_reason", None)
                 raw = _texto_respuesta(final)
         except anthropic.AuthenticationError:
-            yield sse({"type": "error", "detail": L("ANTHROPIC_API_KEY inválida", "Invalid ANTHROPIC_API_KEY")})
+            yield sse({"type": "error", "detail": "Invalid ANTHROPIC_API_KEY"})
             return
         except Exception as e:
-            yield sse({"type": "error", "detail": L("Error de la API de Claude: ", "Claude API error: ") + str(e)})
+            yield sse({"type": "error", "detail": "Claude API error: " + str(e)})
             return
 
         # Ejecutar actions + uso + STATE.md (idéntico a /chat).
@@ -1382,7 +1363,7 @@ async def chat_orquestador_stream(req: ChatRequest):
             resultado = await asyncio.shield(_en_fondo(_procesar_respuesta_orquestador(
                 raw, usage, project, req, terminals_activas, stop_reason=stop)))
         except Exception as e:
-            yield sse({"type": "error", "detail": L("Error procesando la respuesta: ", "Error processing the response: ") + str(e)})
+            yield sse({"type": "error", "detail": "Error processing the response: " + str(e)})
             return
 
         # Evento final con TODO lo estructurado (el cliente ejecuta/renderiza igual que /chat).
@@ -1427,20 +1408,20 @@ async def preview_buscar(q: str = '', modo: str = 'yt', token: str = ''):
     cont = (token or '').strip()
     if modo not in ('yt', 'ytmas', 'ytrel', 'local', 'spotify'):
         raise HTTPException(status_code=400,
-                            detail='modo inválido (yt|ytmas|ytrel|local|spotify)')
+                            detail='invalid modo (yt|ytmas|ytrel|local|spotify)')
     if modo == 'ytmas':
         if not cont:
-            raise HTTPException(status_code=400, detail='falta el parámetro token')
+            raise HTTPException(status_code=400, detail="missing the 'token' parameter")
         if len(cont) > 4000:
-            raise HTTPException(status_code=400, detail='token demasiado largo')
+            raise HTTPException(status_code=400, detail='token too long')
     elif modo in ('yt', 'ytrel', 'spotify'):
         if not consulta:
-            raise HTTPException(status_code=400, detail='falta el parámetro q')
+            raise HTTPException(status_code=400, detail="missing the 'q' parameter")
         if len(consulta) > 200:
-            raise HTTPException(status_code=400, detail='consulta demasiado larga')
+            raise HTTPException(status_code=400, detail='query too long')
     elif len(consulta) > 200:
         # modo=local: sin q se lista TODO (el filtro es opcional)
-        raise HTTPException(status_code=400, detail='consulta demasiado larga')
+        raise HTTPException(status_code=400, detail='query too long')
     try:
         if modo == 'yt':
             # Solo videos reproducibles EMBEBIDOS ("inline"): la Radio los
@@ -1526,7 +1507,7 @@ def _puerto_de_url(url: str) -> Optional[int]:
     try:
         return urlparse(url).port
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"URL con puerto inválido: {url}")
+        raise HTTPException(status_code=400, detail=f"URL with invalid port: {url}")
 
 
 def _puertos_del_proyecto(project_id: int) -> set:
@@ -1573,7 +1554,7 @@ async def detener_preview(project_id: int, body: Optional[StopPreviewBody] = Non
     objetivo = pedida or _preview_url_activo(project_id)
     if objetivo and es_demo_jarvis(objetivo):
         descartar(project_id, objetivo)
-        return {'ok': True, 'mensaje': f'Demo oculto ({objetivo})'}
+        return {'ok': True, 'mensaje': f'Demo hidden ({objetivo})'}
 
     if pedida:
         port = _puerto_de_url(pedida)
@@ -1587,7 +1568,7 @@ async def detener_preview(project_id: int, body: Optional[StopPreviewBody] = Non
             # su preview propio). Cualquier otro puerto no se toca.
             if port not in _puertos_del_proyecto(project_id):
                 return {'ok': False,
-                        'mensaje': f'El puerto {port} no es un server de este proyecto — no se cerró'}
+                        'mensaje': f'Port {port} is not a server of this project — not closed'}
             r = matar_puerto(port)
             if r.get('ok'):
                 matado = r
@@ -1606,12 +1587,12 @@ async def detener_preview(project_id: int, body: Optional[StopPreviewBody] = Non
         descartar(project_id, url)
 
     if matado:
-        return {'ok': True, 'mensaje': f'Server cerrado ({url})', 'pids': matado['pids']}
+        return {'ok': True, 'mensaje': f'Server closed ({url})', 'pids': matado['pids']}
     if propio:
-        return {'ok': True, 'mensaje': f'Preview detenido ({propio})'}
+        return {'ok': True, 'mensaje': f'Preview stopped ({propio})'}
     if url:
-        return {'ok': True, 'mensaje': f'Preview cerrado ({url})'}
-    return {'ok': True, 'mensaje': 'No había preview activo'}
+        return {'ok': True, 'mensaje': f'Preview closed ({url})'}
+    return {'ok': True, 'mensaje': 'No active preview'}
 
 
 # ─── Entrega de tareas a los agentes ─────────────────────────────────────────
@@ -1682,7 +1663,7 @@ async def _esperar_agente_listo(terminal_id: int, timeout: float = 30.0) -> bool
         try:
             from plotspace.core import agent_watch
             if listo_segun_fase(agent_watch._estados.get(terminal_id)):
-                print(f'[ready] {session}: listo por fase de agent_watch')
+                print(f'[ready] {session}: ready per agent_watch phase')
                 await asyncio.sleep(1.5)
                 return True
         except Exception:
@@ -1696,7 +1677,7 @@ async def _esperar_agente_listo(terminal_id: int, timeout: float = 30.0) -> bool
         # Trust prompt: la opción 1 ya viene seleccionada por default ("Yes, I
         # trust this folder ✓"), así que basta con Enter para confirmar.
         if not trust_resuelto and any(p in texto for p in TRUST_PATTERNS):
-            print(f'[ready] {session}: trust prompt detectado, mandando Enter')
+            print(f'[ready] {session}: trust prompt detected, sending Enter')
             backend().enviar_tecla(terminal_id, 'Enter')
             trust_resuelto = True
             await asyncio.sleep(2.5)  # esperar que Claude inicialice tras el trust
@@ -1705,11 +1686,11 @@ async def _esperar_agente_listo(terminal_id: int, timeout: float = 30.0) -> bool
         if any(p in texto for p in READY_PATTERNS):
             # Margen extra: aún viendo el banner, Claude Code puede tardar
             # 1-2s en aceptar input via tmux send-keys.
-            print(f'[ready] {session}: agente listo, dando 2s de gracia antes del send')
+            print(f'[ready] {session}: agent ready, 2s grace before send')
             await asyncio.sleep(2.0)
             return True
 
-    print(f'[ready] {session}: timeout, voy a intentar el send igual')
+    print(f'[ready] {session}: timeout, will try the send anyway')
     return False
 
 
@@ -1728,21 +1709,21 @@ def _tarea_para_agente(tarea: str, archivos: list, terminal_id: int,
     estructurado (sentinel). Cada agregado degrada a nada si falla."""
     texto = (tarea or '').strip()
     if archivos:
-        texto += ("\n\nARCHIVOS DE TU PROPIEDAD EXCLUSIVA (no toques nada fuera de "
-                  f"esto): {', '.join(archivos)}. Si necesitás modificar otro archivo, "
-                  "cerrá como blocked explicando cuál y por qué.")
+        texto += ("\n\nFILES EXCLUSIVELY YOURS (touch nothing outside this "
+                  f"list): {', '.join(archivos)}. If you need to modify another "
+                  "file, close as blocked explaining which one and why.")
     if project_ruta:
         try:
             from plotspace.core.memoria_recall import bloque_relevantes
             texto += bloque_relevantes(project_ruta, archivos, texto,
                                        terminal_id=terminal_id)
         except Exception as e:
-            print(f'[agente] recall de memorias falló (sigo sin bloque): {e}')
+            print(f'[agent] memory recall failed (continuing without the block): {e}')
     try:
         from plotspace.core.mailbox import bloque_pendientes_para_tarea
         texto += bloque_pendientes_para_tarea(terminal_id)
     except Exception as e:
-        print(f'[agente] mailbox pendientes falló (sigo sin bloque): {e}')
+        print(f'[agent] mailbox pending failed (continuing without the block): {e}')
     return texto + _cierre_prompt_directo(terminal_id)
 
 
@@ -1776,7 +1757,7 @@ def _registrar_origen(terminal_id: int, tarea: str, orquestacion: str,
         finally:
             conn.close()
     except Exception as e:
-        print(f'[agente] no pude registrar el origen de #{terminal_id}: {e}')
+        print(f"[agent] couldn't record origin for #{terminal_id}: {e}")
 
 
 async def _avisar_agentes(project_id: int) -> None:
@@ -1785,7 +1766,7 @@ async def _avisar_agentes(project_id: int) -> None:
         from plotspace.core.events import broadcaster
         await broadcaster.broadcast(project_id, {"type": "agentes_update"})
     except Exception as e:
-        print(f'[agente] broadcast agentes_update falló: {e}')
+        print(f'[agent] agentes_update broadcast failed: {e}')
 
 
 def _comando_cli_agente(ia_type: str, session_uuid: str = None):
@@ -1818,10 +1799,10 @@ async def _lanzar_agente_con_tarea(project_id: int, terminal: dict, tarea: str,
             from plotspace.core import territorio
             r = territorio.reclamar(project_id, tid, terminal.get('nombre') or '', archivos)
             if r['ocupados']:
-                print(f'[agente] #{tid}: ya tienen dueño → '
+                print(f'[agent] #{tid}: already owned → '
                       + ', '.join(f"{o['patron']} ({o['de']})" for o in r['ocupados']))
         except Exception as e:
-            print(f'[agente] no pude reclamar el territorio de #{tid}: {e}')
+            print(f"[agent] couldn't claim territory for #{tid}: {e}")
 
     try:
         from plotspace.routers.terminals import _preparar_proyecto, _crear_sesion_tmux
@@ -1830,7 +1811,7 @@ async def _lanzar_agente_con_tarea(project_id: int, terminal: dict, tarea: str,
         cmd = _comando_cli_agente(terminal.get('tipo_ia') or '', terminal.get('session_uuid'))
         await _crear_sesion_tmux(tid, ruta or '', comando_cli=cmd)
     except Exception as e:
-        print(f'[agente] no pude crear la sesión de #{tid}: {e}')
+        print(f"[agent] couldn't create session for #{tid}: {e}")
 
     texto = _tarea_para_agente(tarea, archivos, tid, project_ruta=ruta)
     _en_fondo(_entregar_tarea_cuando_listo(project_id, tid, terminal.get('nombre') or '',
@@ -1850,10 +1831,8 @@ async def _entregar_tarea_cuando_listo(project_id: int, terminal_id: int,
             from plotspace.core.events import broadcaster
             await broadcaster.broadcast(project_id, {
                 "type": "orquestador_mensaje",
-                "message": L(f"⚠️ No pude entregarle la tarea a {nombre or f'#{terminal_id}'} "
-                             "(su sesión no responde).",
-                             f"⚠️ I couldn't deliver the task to {nombre or f'#{terminal_id}'} "
-                             "(its session isn't responding)."),
+                "message": (f"⚠️ I couldn't deliver the task to {nombre or f'#{terminal_id}'} "
+                            "(its session isn't responding)."),
             })
         except Exception:
             pass
@@ -1894,7 +1873,7 @@ async def procesar_task_event_interno(terminal_id: int, event: str, project_id: 
     try:
         await asyncio.to_thread(_insertar_task_event, terminal_id, event, project_id, motivo)
     except Exception as e:
-        print(f'[task_event] no pude persistir {event} de #{terminal_id}: {e}')
+        print(f'[task_event] could not persist {event} from #{terminal_id}: {e}')
     try:
         term_nombre = await asyncio.to_thread(_nombre_terminal, terminal_id)
     except Exception:
@@ -1921,13 +1900,13 @@ async def send_to_agent(terminal_id: int, mensaje: str, crudo: bool = False) -> 
             orq_contexto.registrar_envio(terminal_id, mensaje)
         except Exception:
             pass
-        mensaje = f'Lee tu CLAUDE.md primero. Luego: {mensaje}'
+        mensaje = f'Read your CLAUDE.md first. Then: {mensaje}'
     session = f'jarvis_{terminal_id}'
     print(f'[send_to_agent] → {session}: {mensaje[:100]}')
 
     # Verificar que la sesión existe antes de enviar
     if not backend().existe(terminal_id):
-        print(f'[send_to_agent] ERROR: sesión {session} no existe — abortando')
+        print(f'[send_to_agent] ERROR: session {session} does not exist — aborting')
         return False
 
     # La tarea viaja como PASTE (buffer de tmux), no tipeada. `send-keys -l`
@@ -1955,7 +1934,7 @@ async def send_to_agent(terminal_id: int, mensaje: str, crudo: bool = False) -> 
                   f'{e.decode(errors="replace").strip()}')
             break
     else:
-        print(f'[send_to_agent] OK → {session} ({len(mensaje)} chars pegados)')
+        print(f'[send_to_agent] OK → {session} ({len(mensaje)} chars pasted)')
     if pegado:
         # Enter solo si el texto llegó: sin pegado, un Enter a ciegas manda
         # lo que el usuario tuviera a medio escribir en el prompt.
@@ -2024,7 +2003,7 @@ def _detener_preview_si_existe(project_id: int) -> Optional[str]:
     except Exception:
         try: proc.kill()
         except Exception: pass
-    print(f'[preview] Detenido {url}')
+    print(f'[preview] Stopped {url}')
     return url
 
 
@@ -2208,26 +2187,21 @@ async def _cerrar_terminal(terminal_id: int, project_id: int = None):
     finally:
         conn.close()
     if fila is None or not fila['activa']:
-        return L(f"no encontré la terminal #{terminal_id} activa",
-                 f"I couldn't find an active terminal #{terminal_id}")
+        return f"I couldn't find an active terminal #{terminal_id}"
     if project_id is not None and fila['project_id'] != project_id:
         _logs.evento('cierre_rechazado', nivel='warn', terminal_id=terminal_id,
                      accion='close_terminal', motivo='otro_proyecto',
                      project_id=project_id)
-        return L(f"no cerré la terminal #{terminal_id} ({fila['nombre']}): "
-                 "pertenece a OTRO proyecto",
-                 f"I didn't close terminal #{terminal_id} ({fila['nombre']}): "
-                 "it belongs to ANOTHER project")
+        return (f"I didn't close terminal #{terminal_id} ({fila['nombre']}): "
+                "it belongs to ANOTHER project")
 
     clave = ('t', terminal_id)
     if _fase_terminal(terminal_id) == 'trabajando' and not _insistencia_cierre(clave):
         _sellar_rechazo_cierre(clave)
         _logs.evento('cierre_rechazado', nivel='warn', terminal_id=terminal_id,
                      accion='close_terminal', motivo='trabajando')
-        return L(f"no cerré {fila['nombre']}: está TRABAJANDO ahora mismo — "
-                 "si igual querés cerrarla, repetime la orden",
-                 f"I didn't close {fila['nombre']}: it's WORKING right now — "
-                 "if you still want it closed, repeat the order")
+        return (f"I didn't close {fila['nombre']}: it's WORKING right now — "
+                "if you still want it closed, repeat the order")
     _cierres_rechazados.pop(clave, None)
 
     conn = get_db()
@@ -2264,15 +2238,15 @@ async def _actualizar_state_md(project: dict, project_id: int):
         conn.close()
 
     ahora  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    lineas = [f"# Estado del workspace — {ahora}", "", "## Agentes activos"]
+    lineas = [f"# Workspace state — {ahora}", "", "## Active agents"]
     if terminals:
-        lineas += ["| ID | Nombre | IA | Estado | Desde |", "|----|--------|----|--------|-------|"]
+        lineas += ["| ID | Name | AI | State | Since |", "|----|------|----|-------|-------|"]
         for t in terminals:
             desde = t["fecha_creacion"][11:16] if len(t["fecha_creacion"]) >= 16 else "-"
-            lineas.append(f"| {t['id']} | {t['nombre']} | {t['tipo_ia']} | activo | {desde} |")
+            lineas.append(f"| {t['id']} | {t['nombre']} | {t['tipo_ia']} | active | {desde} |")
     else:
-        lineas.append("_(sin agentes activos)_")
-    lineas += ["", "## Archivos en uso", "_(sin cambios registrados)_", ""]
+        lineas.append("_(no active agents)_")
+    lineas += ["", "## Files in use", "_(no changes recorded)_", ""]
 
     state_path = os.path.join(workspace_dir, "STATE.md")
     try:

@@ -187,34 +187,34 @@ def _aplicar_patch_texto(app_dir: str, rel_file, line, old, new) -> dict:
     ubicado por (archivo, línea) de __source. Devuelve {ok, file, line, ...} o
     {ok:False, error}. No lanza: todos los fallos vuelven como error legible."""
     if not isinstance(rel_file, str) or not rel_file.strip():
-        return {'ok': False, 'error': 'archivo inválido'}
+        return {'ok': False, 'error': 'invalid file'}
     if not isinstance(old, str) or not isinstance(new, str):
-        return {'ok': False, 'error': 'texto inválido'}
+        return {'ok': False, 'error': 'invalid text'}
     if not old.strip():
-        return {'ok': False, 'error': 'texto original vacío'}
+        return {'ok': False, 'error': 'empty original text'}
     if old == new:
         return {'ok': False, 'error': 'sin cambios'}
     if len(new) > _MAX_TEXTO:
         return {'ok': False, 'error': 'texto demasiado largo'}
     if any(c in old for c in _PROHIBIDOS) or any(c in new for c in _PROHIBIDOS):
-        return {'ok': False, 'error': 'solo se editan textos simples (no código)'}
+        return {'ok': False, 'error': 'only plain text can be edited (not code)'}
 
     base = os.path.realpath(app_dir)
     full = os.path.realpath(os.path.join(base, rel_file))
     if full != base and not full.startswith(base + os.sep):
-        return {'ok': False, 'error': 'ruta fuera del proyecto'}
+        return {'ok': False, 'error': 'path outside the project'}
     if os.path.splitext(full)[1].lower() not in _SRC_EXT:
-        return {'ok': False, 'error': 'tipo de archivo no editable'}
+        return {'ok': False, 'error': 'file type not editable'}
     if not os.path.isfile(full):
-        return {'ok': False, 'error': 'archivo no encontrado'}
+        return {'ok': False, 'error': 'file not found'}
     try:
         with open(full, 'r', encoding='utf-8') as f:
             lineas = f.readlines()
     except (OSError, UnicodeDecodeError):
-        return {'ok': False, 'error': 'no pude leer el archivo'}
+        return {'ok': False, 'error': 'could not read the file'}
     n = len(lineas)
     if n == 0:
-        return {'ok': False, 'error': 'archivo vacío'}
+        return {'ok': False, 'error': 'empty file'}
 
     # buscar la línea: la indicada primero, luego ±1..±3 (la instrumentación a
     # veces apunta a la línea de apertura del elemento, no a la del texto).
@@ -222,9 +222,9 @@ def _aplicar_patch_texto(app_dir: str, rel_file, line, old, new) -> dict:
     orden = [base_i] + [base_i + d for d in (1, -1, 2, -2, 3, -3)]
     idx = next((i for i in orden if 0 <= i < n and old in lineas[i]), None)
     if idx is None:
-        return {'ok': False, 'error': 'no encontré ese texto cerca de la línea indicada'}
+        return {'ok': False, 'error': 'text not found near the given line'}
     if lineas[idx].count(old) != 1:
-        return {'ok': False, 'error': 'texto ambiguo en la línea (aparece más de una vez)'}
+        return {'ok': False, 'error': 'ambiguous text on the line (appears more than once)'}
 
     linea_txt = lineas[idx]
     pos = linea_txt.find(old)
@@ -232,7 +232,7 @@ def _aplicar_patch_texto(app_dir: str, rel_file, line, old, new) -> dict:
     # rompería la cadena → lo frenamos (en vez de escapar a ciegas).
     antes = linea_txt[pos - 1] if pos > 0 else ''
     if antes in ('"', "'") and antes in new:
-        return {'ok': False, 'error': 'el texto nuevo rompería las comillas del literal'}
+        return {'ok': False, 'error': 'the new text would break the literal quotes'}
     lineas[idx] = linea_txt[:pos] + new + linea_txt[pos + len(old):]
 
     tmp = full + '.jarvis-tmp'
@@ -246,7 +246,7 @@ def _aplicar_patch_texto(app_dir: str, rel_file, line, old, new) -> dict:
                 os.remove(tmp)
         except OSError:
             pass
-        return {'ok': False, 'error': 'no pude escribir el archivo'}
+        return {'ok': False, 'error': 'could not write the file'}
     return {'ok': True, 'file': rel_file, 'line': idx + 1, 'old': old, 'new': new}
 
 
@@ -546,7 +546,7 @@ async def sampler_colores(project_id: int, url: str, ruta: str = '/'):
     Mobile Studio). `url` = origen del dev server detectado; `ruta` = ruta
     actual de la app. El guard es estricto: solo orígenes locales."""
     if not _url_sampler_valida(url):
-        raise HTTPException(status_code=400, detail='URL no permitida (solo dev servers locales)')
+        raise HTTPException(status_code=400, detail='URL not allowed (local dev servers only)')
     url = url.strip().rstrip('/')   # normalizar: url + ruta sin doble barra
     if not _ruta_sampler_valida(ruta):
         ruta = '/'
@@ -560,7 +560,7 @@ async def sampler_colores(project_id: int, url: str, ruta: str = '/'):
     try:
         html = await asyncio.to_thread(_traer)
     except Exception:
-        raise HTTPException(status_code=502, detail='El dev server no respondió')
+        raise HTTPException(status_code=502, detail='The dev server did not respond')
     from fastapi.responses import HTMLResponse
     return HTMLResponse(_inyectar_sampler(html, url), headers={'Cache-Control': 'no-store'})
 
@@ -587,7 +587,7 @@ async def asset_proxy(project_id: int, u: str):
     (bug real 2026-07-11, Outfit de @expo-google-fonts). Servidas desde Jarvis
     son same-origin y cargan. Guard: solo dev servers locales."""
     if not _url_asset_valida(u):
-        raise HTTPException(status_code=400, detail='URL no permitida (solo dev servers locales)')
+        raise HTTPException(status_code=400, detail='URL not allowed (local dev servers only)')
 
     def _traer_asset():
         import urllib.request
@@ -598,7 +598,7 @@ async def asset_proxy(project_id: int, u: str):
     try:
         cuerpo, ctype = await asyncio.to_thread(_traer_asset)
     except Exception:
-        raise HTTPException(status_code=502, detail='El dev server no respondió')
+        raise HTTPException(status_code=502, detail='The dev server did not respond')
     from fastapi import Response
     return Response(content=cuerpo, media_type=ctype,
                     headers={'Cache-Control': 'public, max-age=3600'})
@@ -771,7 +771,7 @@ async def patch_text(project_id: int, payload: dict = Body(...)):
     solo. Solo textos planos (nunca código/JSX). Ver _aplicar_patch_texto."""
     app_dir = await asyncio.to_thread(_ruta_app_expo_cached, project_id)
     if not app_dir:
-        raise HTTPException(status_code=404, detail='el proyecto no es una app Expo')
+        raise HTTPException(status_code=404, detail='the project is not an Expo app')
     try:
         linea = int(payload.get('line'))
     except (TypeError, ValueError):
@@ -780,7 +780,7 @@ async def patch_text(project_id: int, payload: dict = Body(...)):
         _aplicar_patch_texto, app_dir,
         payload.get('file'), linea, payload.get('old'), payload.get('new'))
     if not res.get('ok'):
-        raise HTTPException(status_code=400, detail=res.get('error', 'no se pudo editar'))
+        raise HTTPException(status_code=400, detail=res.get('error', 'could not edit'))
     return res
 
 
@@ -802,7 +802,7 @@ async def localizar_texto(project_id: int, payload: dict = Body(...)):
     → editable directo; varias → el front desambigua."""
     app_dir = await asyncio.to_thread(_ruta_app_expo_cached, project_id)
     if not app_dir:
-        raise HTTPException(status_code=404, detail='el proyecto no es una app Expo')
+        raise HTTPException(status_code=404, detail='the project is not an Expo app')
     matches = await asyncio.to_thread(_localizar_texto, app_dir, payload.get('texto'))
     return {'matches': matches, 'unico': len(matches) == 1}
 
@@ -917,7 +917,7 @@ async def crear_nota(project_id: int, payload: dict = Body(default={})):
 
     nota = await asyncio.to_thread(_crear)
     if nota is None:
-        raise HTTPException(status_code=409, detail=f'máximo {MAX_NOTAS} notas por proyecto')
+        raise HTTPException(status_code=409, detail=f'maximum {MAX_NOTAS} notes per project')
     return nota
 
 

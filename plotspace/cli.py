@@ -37,23 +37,23 @@ def _abrir_cuando_responda(url: str, espera: float = 30.0):
             return
         except (urllib.error.URLError, OSError):
             time.sleep(0.4)
-    print(f'[jarvis] el motor no respondió en {espera:.0f}s — abrilo a mano: {url}')
+    print(f'[jarvis] the server did not respond in {espera:.0f}s — open it manually: {url}')
 
 
 def construir_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog='jarvis',
-        description='Jarvis Workspace — tu flota de agentes de código, en una app.')
+        description='Jarvis Workspace — your fleet of coding agents, in one app.')
     p.add_argument('--puerto', type=int, default=int(os.environ.get('JARVIS_PORT', 3000)))
     # 127.0.0.1 y NO 0.0.0.0: el default no puede exponer a toda la red local
     # una app que ejecuta comandos arbitrarios. Quien quiera entrar desde el
     # celular lo pide explícito.
     p.add_argument('--host', default=os.environ.get('JARVIS_HOST', '127.0.0.1'),
-                   help='127.0.0.1 por defecto. Poné 0.0.0.0 para entrar desde la LAN.')
+                   help='127.0.0.1 by default. Set 0.0.0.0 to access from the LAN.')
     p.add_argument('--sin-browser', action='store_true',
                    help='no abrir el navegador (para correrlo en un servidor)')
     p.add_argument('--datos', default=os.environ.get('JARVIS_DATA_DIR', ''),
-                   help='dónde guardar la DB y el estado local')
+                   help='where to store the DB and local state')
     return p
 
 
@@ -75,8 +75,8 @@ def main(argv=None) -> int:
     os.chdir(raiz)
 
     if args.host not in ('127.0.0.1', 'localhost', '::1'):
-        print(f'[jarvis] escuchando en {args.host}: la app queda accesible '
-              'desde la red. Asegurate de que sea lo que querés.')
+        print(f'[jarvis] listening on {args.host}: the app will be reachable '
+              'from the network. Make sure this is what you want.')
 
     url = f'http://{"127.0.0.1" if args.host == "0.0.0.0" else args.host}:{args.puerto}'
     if not args.sin_browser:

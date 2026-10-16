@@ -324,11 +324,11 @@ def test_live_md_contenido():
     snap = armar_snapshot(1, rows, archivos, duenos, permisos,
                           fases={10: 'trabajando', 20: 'idle'}, actividad=[], ahora=100.0)
     md = generar_live_md(snap, '2026-06-07 14:32:10')
-    assert 'NO editar' in md
-    assert '## Backend (claude, terminal 10) — 🟢 trabajando' in md
-    assert '`plotspace/core/x.py` — write ×3 (hace 10s) 🔒 dueño' in md
-    assert '## Permisos' in md
-    assert '⏳ Frontend pidió PERMISO sobre `plotspace/core/x.py` (dueño: Backend)' in md
+    assert 'do NOT edit' in md
+    assert '## Backend (claude, terminal 10) — 🟢 working' in md
+    assert '`plotspace/core/x.py` — write ×3 (10s ago) 🔒 owner' in md
+    assert '## Permissions' in md
+    assert '⏳ Frontend requested PERMISSION over `plotspace/core/x.py` (owner: Backend)' in md
     # los reads solos NO se publican
     assert md.count('plotspace/core/x.py') == 2  # 1 en Backend + 1 en permisos
 
@@ -336,7 +336,7 @@ def test_live_md_contenido():
 def test_live_md_sin_actividad():
     snap = {'agentes': [], 'permisos': [], 'actividad': []}
     md = generar_live_md(snap, '2026-06-07 14:00:00')
-    assert 'Sin agentes activos' in md
+    assert 'No active agents' in md
 
 
 # ─── Muerte visible: LIVE.md es de donde lee el guard de propiedad ───────────
@@ -357,7 +357,7 @@ def test_live_md_marca_al_caido_para_que_el_guard_lo_vea():
     snap = armar_snapshot(1, rows, archivos, duenos, [], fases={10: 'caido'},
                           actividad=[], ahora=100.0)
     md = generar_live_md(snap, '2026-06-07 14:32:10')
-    assert '💀' in md and 'caído' in md
+    assert '💀' in md and 'down' in md
     assert '🟢' not in md.split('\n')[2]
 
 
@@ -739,7 +739,7 @@ def test_live_md_renderea_reservas():
                                     (2, 'otro.js'): {'tid': 9, 'nombre': 'X', 'ts': 100.0}})
     assert len(snap['reservas']) == 1, 'solo las del proyecto'
     md = generar_live_md(snap, '2026-07-19 03:00:00')
-    assert '## Reservas' in md
+    assert '## Reservations' in md
     assert '🔖 `a.js` — Frontend' in md
 
 

@@ -142,7 +142,7 @@ def test_estampida_concurrente_un_solo_git(monkeypatch):
 def test_snapshot_incluye_proxima_bajo_el_mismo_cache(monkeypatch):
     # _version_proxima corre git extra cuando hay update: tiene que viajar
     # DENTRO del snapshot cacheado, no recomputarse por poll.
-    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'Hay una nueva versión', []))
+    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'A new version is available', []))
     monkeypatch.setattr(system, '_commits_con_archivos', lambda: [{'subject': 'fix: x', 'files': []}])
     monkeypatch.setattr(system, '_VERSION_BOOT', '1.5.1')
     _reset_cache()

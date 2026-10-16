@@ -28,9 +28,9 @@ def avisos(msgs: list, staged: list) -> list:
         de = m.get('de', '?')
         toca = sorted(b for b in basenames if b and b in texto)
         if toca:
-            urgentes.append(f"📬⚠ de {de} — MENCIONA {', '.join(toca)} (staged): {texto[:200]}")
+            urgentes.append(f"📬⚠ from {de} — MENTIONS {', '.join(toca)} (staged): {texto[:200]}")
         else:
-            normales.append(f"📬 de {de}: {texto[:160]}")
+            normales.append(f"📬 from {de}: {texto[:160]}")
     return urgentes + normales
 
 

@@ -80,3 +80,6 @@ server.pid
 .jarvis/mailbox-pendientes.json
 .jarvis/jv
 desktop/engine/target/
+
+# Señales runtime del sentinel (una por terminal, efímeras)
+.jarvis/signals/

@@ -98,7 +98,7 @@ def test_linea_mailbox_recorta_lo_gigante():
 # ─── Inbox: solo lo mío, no leído ─────────────────────────────────────────────
 
 def test_inbox_vacio_es_explicito():
-    assert 'sin mensajes' in formatear_inbox([]).lower()
+    assert 'no new messages' in formatear_inbox([]).lower()
 
 
 def test_inbox_muestra_de_quien_y_que():

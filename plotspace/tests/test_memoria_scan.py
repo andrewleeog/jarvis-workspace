@@ -84,7 +84,7 @@ def test_sembrar_scan_escribe_memoria_valida():
         assert 'resumen:' in src
         assert 'Next.js' in src
         assert 'npm run dev' in src
-        assert 'verificalo y actualizá' in src.lower() or 'auto-detectado' in src.lower()
+        assert 'verify and update' in src.lower() or 'auto-detected' in src.lower()
 
 
 def test_sembrar_scan_skip_corpus_poblado():

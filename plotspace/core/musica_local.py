@@ -64,9 +64,9 @@ def _validar_rel(rel: str) -> str:
     """Valida un relpath de la biblioteca: relativo, sin `..`, sin abs."""
     r = (rel or '').strip().replace('\\', '/')
     if not r:
-        raise MusicaError('ruta vacía')
+        raise MusicaError('empty path')
     if r.startswith('/') or any(seg == '..' for seg in r.split('/')):
-        raise MusicaError('ruta no permitida')
+        raise MusicaError('path not allowed')
     return r
 
 
@@ -76,7 +76,7 @@ def _resolve_bajo(rel: str) -> Path:
     base = Path(ruta_musica()).resolve()
     p = (base / _validar_rel(rel)).resolve()
     if not p.is_relative_to(base):
-        raise MusicaError('ruta fuera de la biblioteca')
+        raise MusicaError('path outside the library')
     return p
 
 
@@ -86,10 +86,10 @@ def archivo(relpath: str) -> str:
     rel = _validar_rel(relpath)
     ext = os.path.splitext(rel)[1].lower()
     if ext not in AUDIO_EXTS:
-        raise MusicaError(f'formato no soportado ({ext or "sin extensión"})')
+        raise MusicaError(f'unsupported format ({ext or "no extension"})')
     p = _resolve_bajo(rel)
     if not p.is_file():
-        raise MusicaError('archivo inexistente')
+        raise MusicaError('file does not exist')
     return str(p)
 
 
@@ -244,7 +244,7 @@ def listar(carpeta: str = '', filtro: str = '') -> list:
     if not inicio.is_dir():
         if not sub:
             return []           # biblioteca vacía (data/music no existe aún)
-        raise MusicaError('carpeta inexistente')
+        raise MusicaError('folder does not exist')
 
     filtro_bajo = filtro.strip().lower()
     out = []
@@ -299,8 +299,8 @@ def guardar(nombre_bruto: str, contenido: bytes) -> str:
     aceptable: extensiones fuera de AUDIO_EXTS se rechazan."""
     ext = os.path.splitext(nombre_bruto or '')[1].lower()
     if ext not in AUDIO_EXTS:
-        raise MusicaError(f'formato no admitido ({ext or "sin extensión"}) — '
-                          f'solo {" ".join(AUDIO_EXTS)}')
+        raise MusicaError(f'unsupported format ({ext or "no extension"}) — '
+                          f'only {" ".join(AUDIO_EXTS)}')
     destino_dir = ruta_data('music', 'audio')
     os.makedirs(destino_dir, exist_ok=True)
     final = _unico(destino_dir, _saneado(nombre_bruto))

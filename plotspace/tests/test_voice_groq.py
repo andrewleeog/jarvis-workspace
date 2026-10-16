@@ -90,10 +90,10 @@ def test_groq_habilitado_exige_motor_y_key(monkeypatch):
     assert voice._groq_habilitado() is False
 
 
-def test_armar_form_transcripcion_es():
+def test_armar_form_transcripcion_en():
     form = stt_groq.armar_form("whisper-large-v3-turbo", "Jarvis, tmux")
     assert form["model"] == "whisper-large-v3-turbo"
-    assert form["language"] == "es"
+    assert form["language"] == "en"
     assert form["prompt"] == "Jarvis, tmux"
     # Decode determinista, mismo criterio que el motor local.
     assert form["temperature"] == "0"

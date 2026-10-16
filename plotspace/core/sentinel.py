@@ -150,7 +150,7 @@ async def _ciclo():
             continue
         if d is None:
             continue
-        print(f"[sentinel] terminal {t['id']} cerró por sentinel: {d['keyword']}")
+        print(f"[sentinel] terminal {t['id']} closed via sentinel: {d['keyword']}")
         try:
             from plotspace.routers.terminals import _procesar_keyword_evento
             # El motivo del sentinel-file es la ÚNICA fuente estructurada del

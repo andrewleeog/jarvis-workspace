@@ -8,6 +8,22 @@ window.terminalesXterm = terminales;
 
 const _termT = (s) => (window.JarvisI18n && window.JarvisI18n.t) ? window.JarvisI18n.t(s) : s;
 
+function _velocidadRuedaTerminal() {
+  const flujo = window.TerminalFlow;
+  try {
+    return flujo?.normalizarVelocidadRueda?.(
+      localStorage.getItem(flujo?.LS_VELOCIDAD_RUEDA || 'jarvis.terminal.scrollSpeed'))
+      ?? flujo?.FACTOR_RUEDA ?? 3;
+  } catch (_) {
+    return flujo?.FACTOR_RUEDA ?? 3;
+  }
+}
+
+window.addEventListener('jarvis:terminal-scroll-speed', (e) => {
+  const velocidad = window.TerminalFlow?.normalizarVelocidadRueda?.(e.detail) ?? 3;
+  terminales.forEach(inst => { try { inst.term.options.scrollSensitivity = velocidad; } catch (_) {} });
+});
+
 // Comandos que se lanzan automáticamente según el tipo de IA
 const AUTO_CMDS = {
   claude:      'claude --permission-mode auto',
@@ -343,7 +359,7 @@ function crearTerminal(containerId, terminalId, tipoIa = 'manual', intentoAuto =
     convertEol:         true,
     allowProposedApi:   true,
     fastScrollModifier: 'alt',
-    scrollSensitivity:  3,
+    scrollSensitivity:  _velocidadRuedaTerminal(),
   });
 
   const fitAddon = new FitAddon.FitAddon();
@@ -996,7 +1012,7 @@ function crearTerminal(containerId, terminalId, tipoIa = 'manual', intentoAuto =
     }
     if (_dec === 'nada') return;
     if (_dec === 'app') {
-      const extra = (window.TerminalFlow?.FACTOR_RUEDA || 3) - 1;
+      const extra = _velocidadRuedaTerminal() - 1;
       for (let i = 0; i < extra; i++) {
         const ev = new WheelEvent('wheel', e);
         ev._jarvisRuedaSint = true;
@@ -1008,6 +1024,7 @@ function crearTerminal(containerId, terminalId, tipoIa = 'manual', intentoAuto =
     e.stopPropagation();
     _ruedaAcum += window.TerminalFlow?.lineasDeRueda?.({
       deltaY: e.deltaY, deltaMode: e.deltaMode, rows: term.rows, turbo: e.altKey,
+      factor: _velocidadRuedaTerminal(),
     }) ?? (e.deltaY > 0 ? 3 : -3);
     if (_ruedaRAF) return;
     _ruedaRAF = requestAnimationFrame(() => {

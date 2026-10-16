@@ -68,14 +68,24 @@
   // ACUMULA la fracción entre eventos y aplica el entero → un trackpad de deltas
   // finos no pierde movimiento y un mouse clásico rinde FACTOR× por notch.
   // deltaMode: 0=píxeles (÷18 ≈ altura de línea), 1=líneas, 2=páginas.
-  const FACTOR_RUEDA = 3;          // velocidad normal (antes ~1× y con throttle que comía eventos)
-  const FACTOR_RUEDA_TURBO = 15;   // con Alt apretado (fastScrollModifier)
-  function lineasDeRueda({ deltaY, deltaMode, rows, turbo }) {
+  const FACTOR_RUEDA = 3;          // velocidad normal/default
+  const FACTOR_RUEDA_MIN = 1;
+  const FACTOR_RUEDA_MAX = 6;
+  const FACTOR_RUEDA_TURBO = 15;   // default 3 × 5 con Alt apretado
+  const LS_VELOCIDAD_RUEDA = 'jarvis.terminal.scrollSpeed';
+  function normalizarVelocidadRueda(valor) {
+    if (valor === null || valor === undefined || String(valor).trim() === '') return FACTOR_RUEDA;
+    const n = Number(valor);
+    if (!Number.isFinite(n)) return FACTOR_RUEDA;
+    return Math.max(FACTOR_RUEDA_MIN, Math.min(FACTOR_RUEDA_MAX, Math.round(n)));
+  }
+  function lineasDeRueda({ deltaY, deltaMode, rows, turbo, factor }) {
     if (!Number.isFinite(deltaY)) return 0;
     const base = deltaMode === 1 ? deltaY
                : deltaMode === 2 ? deltaY * rows
                : deltaY / 18;
-    return base * (turbo ? FACTOR_RUEDA_TURBO : FACTOR_RUEDA);
+    const normal = normalizarVelocidadRueda(factor);
+    return base * (turbo ? normal * 5 : normal);
   }
 
 
@@ -242,11 +252,12 @@
     return { listo: buf, resto: '' };
   }
 
-  const api = { UMBRAL_ACK, VENTANA_ECO_MS, FACTOR_RUEDA, FACTOR_RUEDA_TURBO,
+  const api = { UMBRAL_ACK, VENTANA_ECO_MS, FACTOR_RUEDA, FACTOR_RUEDA_MIN,
+                FACTOR_RUEDA_MAX, FACTOR_RUEDA_TURBO, LS_VELOCIDAD_RUEDA,
                 CODIGO_DESPLAZADO, CODIGO_TERMINADA,
                 MARCA_SYNC_H, MARCA_SYNC_L, HEAL_RUEDA_MS,
                 MARCA_HIDE, MARCA_SHOW, CAP_BACKLOG_OCULTO,
-                crearContadorAck, decidirDrenado, lineasDeRueda,
+                crearContadorAck, decidirDrenado, normalizarVelocidadRueda, lineasDeRueda,
                 decidirReintento, decidirRuedaAlt, decidirDestinoRueda,
                 SPARSE_SANEAR_MS, marcarPintorTui, debeSanearSparsePrimary,
                 cortarFrameSync, decidirBacklogOculto };

@@ -143,29 +143,29 @@ def aplicar_deltas(reglas: list, salida: str) -> tuple:
 def armar_prompt(existente: Optional[str], senales: list) -> str:
     reglas = reglas_de(existente)
     actual = ('\n'.join(f'{i}. {r}' for i, r in enumerate(reglas, 1))
-              if reglas else '(ninguna todavía)')
+              if reglas else '(none yet)')
     lista = '\n'.join(f'- {s}' for s in senales)
-    return f"""Sos el curador de las "Lecciones del enjambre" de un equipo de agentes de código que trabajan en paralelo sobre un repo: una lista de hasta {_MAX_REGLAS} reglas cortas extraídas de sus fallos y aciertos reales.
+    return f"""You are the curator of the "Swarm Lessons" of a team of coding agents working in parallel on a repo: a list of up to {_MAX_REGLAS} short rules extracted from their real failures and successes.
 
-Reglas actuales (numeradas):
+Current rules (numbered):
 {actual}
 
-Señales nuevas (cronológicas; TASK_BLOCKED/TASK_ERROR = fallos, TASK_DONE = enfoques que FUNCIONARON):
+New signals (chronological; TASK_BLOCKED/TASK_ERROR = failures, TASK_DONE = approaches that WORKED):
 {lista}
 
-Respondé SOLO con operaciones, una por línea (nada más):
-AGREGAR: <regla nueva — UNA línea imperativa y accionable, opcionalmente el porqué tras un guion>
-REEMPLAZAR <n>: <texto afinado de la regla n (para fusionar un patrón repetido)>
+Respond ONLY with operations, one per line (nothing else):
+AGREGAR: <new rule — ONE imperative, actionable line, optionally the why after a dash>
+REEMPLAZAR <n>: <refined text of rule n (to merge a repeated pattern)>
 QUITAR <n>
-NADA   (si ninguna señal amerita cambio)
+NADA   (if no signal warrants a change)
 
-Criterios:
-- Solo lecciones REUTILIZABLES: un patrón que otro agente pueda evitar o repetir con una regla corta. Un fallo puntual e irrepetible (typo, red caída una vez) NO es lección: ignoralo.
-- Si varias señales repiten el patrón de una regla existente, REEMPLAZÁ esa regla afinándola — no dupliques.
-- De un ÉXITO (TASK_DONE) solo sale regla si revela una práctica no-obvia y reutilizable.
-- Máximo {_MAX_REGLAS} reglas en total: si vas a superar el tope, QUITÁ la menos valiosa.
-- Operá por deltas puntuales — no intentes reescribir todo.
-- Si una señal es ambigua o le falta contexto, no inventes una regla."""
+Criteria:
+- Only REUSABLE lessons: a pattern another agent can avoid or repeat thanks to a short rule. A one-off failure (typo, network down once) is NOT a lesson: ignore it.
+- If several signals repeat the pattern of an existing rule, REEMPLAZAR that rule by refining it — don't duplicate.
+- From a SUCCESS (TASK_DONE) a rule only comes out if it reveals a non-obvious, reusable practice.
+- At most {_MAX_REGLAS} rules in total: if you would exceed the cap, QUITAR the least valuable one.
+- Operate by small deltas — don't try to rewrite everything.
+- If a signal is ambiguous or lacks context, don't invent a rule."""
 
 
 def _llamar_destilador(prompt: str) -> str:
@@ -199,7 +199,7 @@ def destilar_ahora(project_id: int, project_path: str,
     desde = int(estado.get(str(project_id), {}).get('ultimo_evento_id', 0))
     senales, max_id = senales_nuevas(project_id, desde)
     if not senales:
-        return {'ok': False, 'motivo': 'sin señales nuevas'}
+        return {'ok': False, 'motivo': 'no new signals'}
     reglas = reglas_de(_cuerpo_actual(project_path))
     try:
         texto = _llamar_destilador(armar_prompt(_cuerpo_actual(project_path), senales))
@@ -303,9 +303,9 @@ def tal_vez_destilar_todos() -> dict:
             r = tal_vez_destilar(pid, ruta)
             if r and r.get('ok'):
                 resumen['destilados'] += 1
-                print(f"[lecciones] proyecto {pid}: {r['senales']} señales destiladas")
+                print(f"[lecciones] project {pid}: {r['senales']} signals distilled")
         except Exception as e:
-            print(f'[lecciones] proyecto {pid} falló: {e}')
+            print(f'[lecciones] project {pid} failed: {e}')
     return resumen
 
 
@@ -375,8 +375,8 @@ def inyectar_lecciones(project_path: str):
         partes.append(cuerpo.split(ENCABEZADO, 1)[-1].strip())
     compiladas = lecciones_de_memorias(project_path)
     if compiladas:
-        partes.append("Lecciones escritas por el enjambre (abrí la memoria antes "
-                      "de pisar su tema):\n" + '\n'.join(compiladas))
+        partes.append("Lessons written by the swarm (read its memory before "
+                      "stepping on its topics):\n" + '\n'.join(compiladas))
     if not partes:
         return
     bloque = (f"{MARKER_START}\n## 📚 Lecciones del enjambre (siempre cargadas — "

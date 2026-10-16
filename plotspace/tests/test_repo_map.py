@@ -76,7 +76,7 @@ def test_tope_de_lineas_sin_truncado_silencioso():
         os.makedirs(os.path.join(d, f'modulo_{i:02d}'))
     mapa = repo_map.generar_mapa(d, max_lineas=10)
     assert len(mapa.splitlines()) <= 11    # 10 + el marcador
-    assert 'más' in mapa                   # "… (+N carpetas más)" — nunca truncar en silencio
+    assert 'more folders' in mapa          # "… (+N more folders)" — never truncate silently
 
 
 def test_ruta_inexistente_devuelve_vacio():

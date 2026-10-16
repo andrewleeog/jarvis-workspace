@@ -44,13 +44,13 @@ MAX_TERRITORIO = 6
 MAX_HERENCIA = 3            # muertos distintos
 MAX_ARCHIVOS_HERENCIA = 4
 
-MARCA = '[Enjambre]'
+MARCA = '[Swarm]'
 
 _ESTADO_MARCA = {
-    'trabajando': '🟢 trabajando',
-    'caido':      '💀 caído (su CLI se cerró)',
+    'trabajando': '🟢 working',
+    'caido':      '💀 down (its CLI exited)',
 }
-_ESTADO_DEFAULT = '⚪ libre'
+_ESTADO_DEFAULT = '⚪ idle'
 
 
 def _texto(v) -> str:
@@ -93,13 +93,13 @@ def armar_briefing(estado) -> str:
     if not pares and not sin_leer and not herencia:
         return ''
 
-    yo = _texto(e.get('yo')) or 'vos'
+    yo = _texto(e.get('yo')) or 'you'
     out = []
 
     if pares:
         visibles, resto = _recorte(pares, MAX_PARES)
-        cab = (f'{MARCA} Sos {yo} · {len(pares)} agente'
-               f"{'s' if len(pares) != 1 else ''} más en este proyecto:")
+        cab = (f'{MARCA} You are {yo} · {len(pares)} other agent'
+               f"{'s' if len(pares) != 1 else ''} in this project:")
         out.append(cab)
         for p in visibles:
             nombre = _texto(p.get('nombre')) or '?'
@@ -110,14 +110,14 @@ def armar_briefing(estado) -> str:
                 [_texto(a) for a in _lista(otros.get(nombre))],
                 MAX_ARCHIVOS_POR_PAR)
             if archivos:
-                linea += ' — toca ' + ', '.join(archivos)
+                linea += ' — touching ' + ', '.join(archivos)
                 if mas:
                     linea += f' (+{mas})'
             out.append(linea)
         if resto:
-            out.append(f'  (+{resto} más)')
+            out.append(f'  (+{resto} more)')
     else:
-        out.append(f'{MARCA} Sos {yo}.')
+        out.append(f'{MARCA} You are {yo}.')
 
     # Territorio ajeno: lo ÚNICO que el guard te va a frenar de verdad.
     terr = []
@@ -127,31 +127,31 @@ def armar_briefing(estado) -> str:
     if terr:
         visibles, mas = _recorte(terr, MAX_TERRITORIO)
         cuerpo = ', '.join(f'{pat} ({nom})' for nom, pat in visibles)
-        out.append(f'No borres ni renombres territorio ajeno: {cuerpo}'
+        out.append(f'Do not delete or rename another agent\'s territory: {cuerpo}'
                    + (f' (+{mas})' if mas else ''))
 
     # Herencia: trabajo sin commitear de un agente que ya no está. Es lo que
     # antes quedaba huérfano en el árbol para siempre (o se lo llevaba el
     # próximo commit ajeno sin que nadie se enterara).
     for h in _recorte(herencia, MAX_HERENCIA)[0]:
-        nombre = _texto(h.get('nombre')) or 'un agente que ya no está'
+        nombre = _texto(h.get('nombre')) or 'an agent that is gone'
         archivos, mas = _recorte([_texto(a) for a in _lista(h.get('archivos'))],
                                  MAX_ARCHIVOS_HERENCIA)
         detalle = ', '.join(archivos) + (f' (+{mas})' if mas else '')
-        out.append(f'⚠ Herencia: {nombre} se fue dejando sin commitear '
-                   f'{detalle} — si tocás alguno, commitealo vos.')
+        out.append(f'⚠ Inheritance: {nombre} left uncommitted '
+                   f'{detalle} — if you touch any of them, commit them yourself.')
 
     if sin_leer:
-        out.append(f'📬 {sin_leer} mensaje{"s" if sin_leer != 1 else ""} sin leer '
+        out.append(f'📬 {sin_leer} unread message{"s" if sin_leer != 1 else ""} '
                    f'→ .jarvis/jv inbox')
 
     if _dic(e.get('salud_provenance')).get('muda'):
-        out.append('⚠ El tracking de ediciones no registró NADA todavía: si ya '
-                   'hubo escrituras, nadie está protegido (avisale al usuario).')
+        out.append('⚠ The edit-tracking has recorded NOTHING yet: if there were '
+                   'already writes, nobody is protected (tell the user).')
 
     if pares:
-        out.append('Commiteá SOLO lo tuyo: .jarvis/jv commit -m "..." '
-                   '(git add a secas se lleva el trabajo del otro).')
+        out.append('Commit ONLY your own files: .jarvis/jv commit -m "..." '
+                   '(a bare `git add` sweeps up the other agent\'s work).')
 
     return '\n'.join(out)
 

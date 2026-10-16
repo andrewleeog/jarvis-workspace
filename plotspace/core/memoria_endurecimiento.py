@@ -155,7 +155,7 @@ def motivos_recientes(project_id: int, limite: int = 200) -> list:
             if t == 'canary_fallo':
                 motivos.append(str(ev.get('detalle', '')))
             elif t == 'guard_propiedad_bloqueo':
-                motivos.append('guard de propiedad bloqueó commit de archivos ajenos: '
+                motivos.append('ownership guard blocked commit of foreign files: '
                                + ' '.join(ev.get('archivos') or []))
             elif t in ('task_event',) and ev.get('motivo'):
                 motivos.append(str(ev['motivo']))
@@ -189,5 +189,5 @@ def pasada_janitor(umbral: int = None) -> dict:
             resumen['proyectos'] += 1
             resumen['candidatas'] += len(r['candidatas'])
         except Exception as e:
-            print(f'[endurecimiento] proyecto {pid} falló: {e}')
+            print(f'[endurecimiento] proyecto {pid} failed: {e}')
     return resumen

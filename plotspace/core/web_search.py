@@ -31,7 +31,7 @@ import httpx
 
 
 class BusquedaError(Exception):
-    """La búsqueda no se pudo completar (timeout, formato nuevo de YouTube…)."""
+    """The search couldn't be completed (timeout, new YouTube format…)."""
 
 
 # UA de browser real: el default de httpx/HeadlessChrome dispara challenges.
@@ -114,11 +114,11 @@ def parsear_youtube_pagina(html, max_n=MAX_YT):
     """
     m = re.search(r'var ytInitialData\s*=\s*(\{.*?\});</script>', html or '', re.DOTALL)
     if not m:
-        raise BusquedaError('YouTube no devolvió resultados (challenge o formato nuevo)')
+        raise BusquedaError('YouTube returned no results (challenge or new format)')
     try:
         data = json.loads(m.group(1))
     except ValueError as e:
-        raise BusquedaError('no se pudo leer la respuesta de YouTube') from e
+        raise BusquedaError("couldn't read YouTube's response") from e
     videos, tokens = _recorrer_yt(data)
     return {'resultados': _videos_yt(videos, max_n), 'token': tokens[-1] if tokens else None}
 
@@ -147,18 +147,18 @@ async def buscar_youtube_pagina(q, max_n=MAX_YT):
     continuación (más resultados de ESA búsqueda) para buscar_youtube_mas."""
     q = (q or '').strip()
     if not q:
-        raise BusquedaError('consulta vacía')
+        raise BusquedaError('empty query')
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(8.0), follow_redirects=True,
-            headers={'User-Agent': _UA, 'Accept-Language': 'es'},
+            headers={'User-Agent': _UA, 'Accept-Language': 'en'},
             cookies={'CONSENT': 'YES+cb'},
         ) as client:
             resp = await client.get(
                 'https://www.youtube.com/results?search_query=' + quote_plus(q))
             resp.raise_for_status()
     except httpx.HTTPError as e:
-        raise BusquedaError('YouTube no respondió') from e
+        raise BusquedaError("YouTube didn't respond") from e
     return parsear_youtube_pagina(resp.text, max_n)
 
 
@@ -174,11 +174,11 @@ async def buscar_youtube_mas(token, max_n=MAX_YT):
     repetir los ya vistos."""
     tok = (token or '').strip()
     if not _YT_TOKEN_RE.match(tok):
-        raise BusquedaError('token de continuación inválido')
+        raise BusquedaError('invalid continuation token')
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(8.0),
-            headers={'User-Agent': _UA, 'Accept-Language': 'es'},
+            headers={'User-Agent': _UA, 'Accept-Language': 'en'},
             cookies={'CONSENT': 'YES+cb'},
         ) as client:
             resp = await client.post(
@@ -189,9 +189,9 @@ async def buscar_youtube_mas(token, max_n=MAX_YT):
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPError as e:
-        raise BusquedaError('YouTube no respondió') from e
+        raise BusquedaError("YouTube didn't respond") from e
     except ValueError as e:
-        raise BusquedaError('no se pudo leer la respuesta de YouTube') from e
+        raise BusquedaError("couldn't read YouTube's response") from e
     return parsear_yt_mas(data, max_n)
 
 
@@ -264,11 +264,11 @@ async def relacionados_youtube(video_id, max_n=MAX_YT):
     de id de YouTube o la red falló."""
     vid = (video_id or '').strip()
     if not _YT_VIDEO_ID_RE.match(vid):
-        raise BusquedaError('id de video inválido')
+        raise BusquedaError('invalid video id')
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(8.0),
-            headers={'User-Agent': _UA, 'Accept-Language': 'es'},
+            headers={'User-Agent': _UA, 'Accept-Language': 'en'},
             cookies={'CONSENT': 'YES+cb'},
         ) as client:
             resp = await client.post(
@@ -279,9 +279,9 @@ async def relacionados_youtube(video_id, max_n=MAX_YT):
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPError as e:
-        raise BusquedaError('YouTube no respondió') from e
+        raise BusquedaError("YouTube didn't respond") from e
     except ValueError as e:
-        raise BusquedaError('no se pudo leer la respuesta de YouTube') from e
+        raise BusquedaError("couldn't read YouTube's response") from e
     return parsear_yt_relacionados(data, max_n)
 
 
@@ -338,7 +338,7 @@ async def filtrar_embebibles(resultados):
     try:
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(6.0),
-            headers={'User-Agent': _UA, 'Accept-Language': 'es'},
+            headers={'User-Agent': _UA, 'Accept-Language': 'en'},
             cookies={'CONSENT': 'YES+cb'},
         ) as client:
             veredictos = await asyncio.gather(

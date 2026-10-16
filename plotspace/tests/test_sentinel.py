@@ -57,7 +57,7 @@ def test_cierre_de_la_tarea_pide_postmortem():
     tropiezo era prevenible."""
     from plotspace.routers.orchestrator import _cierre_prompt_directo
     txt = _cierre_prompt_directo(7)
-    assert 'motivo' in txt and 'OBLIGATORIO' in txt
+    assert 'motivo' in txt and 'MANDATORY' in txt
     assert 'memorias_usadas' in txt
     assert 'leccion' in txt
 

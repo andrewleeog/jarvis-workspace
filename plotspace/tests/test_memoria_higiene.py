@@ -176,7 +176,7 @@ def test_archivadas_fuera_del_index_con_conteo():
         idx = open(os.path.join(d, '.jarvis', 'memory', 'INDEX.md')).read()
         assert '[[viva]]' in idx
         assert '[[cronica-vieja]]' not in idx, "las archivadas no ensucian el INDEX"
-        assert '1 archivada' in idx            # el conteo queda visible al pie
+        assert '1 archived' in idx             # the count stays visible at the bottom
 
 
 def test_archivadas_fuera_del_recall():

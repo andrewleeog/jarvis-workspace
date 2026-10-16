@@ -126,13 +126,13 @@ async def listar_dir(path: str = Query('')):
     if _bloqueada(base):
         raise HTTPException(status_code=403, detail="Ruta no navegable")
     if not os.path.isdir(base):
-        raise HTTPException(status_code=404, detail="No es una carpeta")
+        raise HTTPException(status_code=404, detail="Not a folder")
     try:
         return await asyncio.to_thread(_listar, base)
     except PermissionError:
-        raise HTTPException(status_code=403, detail="Sin permiso para leer la carpeta")
+        raise HTTPException(status_code=403, detail="No permission to read the folder")
     except OSError:
-        raise HTTPException(status_code=500, detail="No se pudo leer la carpeta")
+        raise HTTPException(status_code=500, detail="Could not read the folder")
 
 
 def hogar_de_la_maquina() -> dict:
@@ -185,7 +185,7 @@ async def elegir_carpeta(body: ElegirCarpeta, request: Request):
     """Abre el selector del sistema y espera a que la persona elija.
     `{ruta | null, cancelado, aviso | null, motor}`. 503 sin selector, 409 si ya hay uno abierto."""
     if not _es_local(request):
-        raise HTTPException(status_code=403, detail="El selector del sistema solo se abre desde esta máquina")
+        raise HTTPException(status_code=403, detail="The system file picker only opens on this machine")
     try:
         return await asyncio.to_thread(selector_nativo.elegir_carpeta, body.inicio or None, (body.titulo or '').strip() or None)
     except selector_nativo.NoDisponible as e:
@@ -193,4 +193,4 @@ async def elegir_carpeta(body: ElegirCarpeta, request: Request):
     except selector_nativo.Ocupado:
         raise HTTPException(status_code=409, detail="Ya hay un selector de carpeta abierto")
     except selector_nativo.ErrorSelector as e:
-        raise HTTPException(status_code=500, detail=str(e) or "El selector del sistema falló")
+        raise HTTPException(status_code=500, detail=str(e) or "The system file picker failed")

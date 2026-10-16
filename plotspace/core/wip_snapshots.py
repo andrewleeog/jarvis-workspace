@@ -63,7 +63,7 @@ def _limpiar_lock(idx: str):
     `.git/index.lock`, que sí es el índice compartido de los agentes."""
     try:
         os.remove(idx + '.lock')
-        print('[wip] había un lock huérfano de una corrida anterior: borrado')
+        print('[wip] stale lock from a previous run: removed')
     except OSError:
         pass
 
@@ -75,7 +75,7 @@ def snapshot_wip(repo: str, keep: int = KEEP):
     try:
         rc, sucio = _git(repo, 'status', '--porcelain')
         if rc != 0:
-            return _fallar(f'git status falló en {repo}')
+            return _fallar(f'git status failed in {repo}')
         if not sucio.strip():
             _fallo['motivo'] = ''         # árbol limpio no es un fallo
             return None
@@ -85,27 +85,27 @@ def snapshot_wip(repo: str, keep: int = KEEP):
         try:
             # índice TEMPORAL sembrado desde HEAD + todo el árbol encima
             if _git(repo, 'read-tree', 'HEAD', env=env)[0] != 0:
-                return _fallar(f'read-tree falló en {repo}')
+                return _fallar(f'read-tree failed in {repo}')
             # El timeout es generoso a propósito: el `add -A` es lo único caro
             # acá (hashea todo el árbol sucio) y es exactamente lo que reventó la
             # vez pasada. Lo que evita que vuelva a pasar no es el timeout sino
             # tener los artefactos en .gitignore — esto es la red de abajo.
             if _git(repo, 'add', '-A', env=env, timeout=TIMEOUT_ADD_S)[0] != 0:
-                return _fallar(f'add -A falló en {repo}')
+                return _fallar(f'add -A failed in {repo}')
             rc, tree = _git(repo, 'write-tree', env=env)
             if rc != 0:
-                return _fallar(f'write-tree falló en {repo}')
+                return _fallar(f'write-tree failed in {repo}')
             rc, head = _git(repo, 'rev-parse', 'HEAD')
             if rc != 0:
-                return _fallar(f'{repo} no tiene HEAD todavía')
+                return _fallar(f'{repo} has no HEAD yet')
             rc, commit = _git(repo, 'commit-tree', tree, '-p', head,
-                              '-m', 'wip snapshot (paracaídas de Jarvis)')
+                              '-m', 'wip snapshot (Jarvis parachute)')
             if rc != 0:
-                return _fallar(f'commit-tree falló en {repo}')
+                return _fallar(f'commit-tree failed in {repo}')
             ts = datetime.now().strftime('%Y%m%d-%H%M%S')
             ref = f'refs/jarvis/wip/{ts}'
             if _git(repo, 'update-ref', ref, commit)[0] != 0:
-                return _fallar(f'update-ref falló en {repo}')
+                return _fallar(f'update-ref failed in {repo}')
         finally:
             try:
                 os.remove(idx)
@@ -147,7 +147,7 @@ def snapshots_todos() -> dict:
             conn.close()
     except Exception as e:
         resumen['fallos'] += 1
-        resumen['motivos'].append(f'no pude listar los proyectos: {e}')
+        resumen['motivos'].append(f'could not list projects: {e}')
         return resumen
     for ruta in rutas:
         if not ruta or not os.path.isdir(os.path.join(ruta, '.git')):

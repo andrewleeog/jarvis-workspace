@@ -492,7 +492,7 @@ def test_patch_rechaza_ruta_fuera_del_proyecto(tmp_path):
     (tmp_path / 'App.tsx').write_text('<Text>Hola</Text>\n', encoding='utf-8')
     res = _aplicar_patch_texto(str(tmp_path), '../secretos.tsx', 1, 'Hola', 'Chau')
     assert res['ok'] is False
-    assert 'proyecto' in res['error']
+    assert 'outside the project' in res['error']
 
 
 def test_patch_rechaza_extension_no_fuente(tmp_path):
@@ -505,7 +505,7 @@ def test_patch_rechaza_new_que_rompe_comillas(tmp_path):
     app, rel = _tsx(tmp_path, "const t = 'de Ana';\n")
     res = _aplicar_patch_texto(app, rel, 1, 'de Ana', "d'Ana")
     assert res['ok'] is False
-    assert 'comillas' in res['error']
+    assert 'quotes' in res['error']
 
 
 def test_patch_sin_cambios_es_noop(tmp_path):

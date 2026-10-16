@@ -149,7 +149,7 @@ def test_instalar_ok():
 
 def test_instalar_lo_que_no_se_instala():
     r = clis.instalar('antigravity')
-    assert r['ok'] is False and 'no se instala' in r['salida']
+    assert r['ok'] is False and 'not installed from here' in r['salida']
 
 
 def test_una_instalacion_colgada_no_queda_para_siempre():
@@ -159,7 +159,7 @@ def test_una_instalacion_colgada_no_queda_para_siempre():
         raise sp.TimeoutExpired(cmd='npm', timeout=600)
 
     r = clis.instalar('claude', correr=_colgado)
-    assert r['ok'] is False and 'tardó demasiado' in r['salida']
+    assert r['ok'] is False and 'timed out' in r['salida']
 
 
 def test_la_salida_no_crece_sin_limite():

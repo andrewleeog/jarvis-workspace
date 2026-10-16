@@ -248,7 +248,7 @@ def test_sanitizar_normaliza_tarea_y_archivos():
 def test_sanitizar_basura_da_par_seguro():
     assert orch._sanitizar_respuesta(None, 'texto') == ('texto', [{'type': 'none'}])
     msg, acts = orch._sanitizar_respuesta({'message': '', 'actions': None, 'workflow': {}}, '')
-    assert msg == 'Procesado.' and acts == [{'type': 'none'}]
+    assert msg == 'Processed.' and acts == [{'type': 'none'}]
 
 
 def test_comando_cli_agente():

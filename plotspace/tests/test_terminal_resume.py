@@ -173,7 +173,7 @@ def test_restore_shell_con_snapshot_reimprime(tmp_path):
         f.write('COMANDO_VIEJO\n')
     cmd = ts.comando_restore_shell(str(tmp_path), 999)
     assert cmd is not None
-    assert 'cat ' in cmd and snap in cmd and 'restaurada' in cmd
+    assert 'cat ' in cmd and snap in cmd and 'restored' in cmd
 
 
 def test_snapshot_no_pisa_con_pane_vacio(tmp_path, monkeypatch):

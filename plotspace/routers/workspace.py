@@ -29,7 +29,7 @@ async def estado_workspace(project_id: int):
         cursor.execute('SELECT * FROM projects WHERE id = ?', (project_id,))
         project = cursor.fetchone()
         if not project:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         ahora = datetime.now().isoformat()
         cursor.execute('UPDATE projects SET ultimo_acceso = ? WHERE id = ?', (ahora, project_id))

@@ -106,7 +106,7 @@ def _detectar_otros(project_path: str, info: dict) -> None:
             or os.path.exists(os.path.join(project_path, 'compose.yml'))):
         info['correr'].append('docker compose up')
     if not info['stack'] and os.path.exists(os.path.join(project_path, 'index.html')):
-        info['stack'].append('Sitio estático (HTML)')
+        info['stack'].append('Static site (HTML)')
 
 
 def detectar(project_path: str):
@@ -129,19 +129,19 @@ def detectar(project_path: str):
 
 
 def _cuerpo(info: dict) -> str:
-    lineas = ["Auto-detectado de los manifiestos del repo al preparar el proyecto — "
-              "verificalo y actualizá esta memoria si cambia.\n"]
+    lineas = ["Auto-detected from the repo manifests while preparing the project — "
+              "verify and update this memory if it changes.\n"]
     lineas.append(f"**Stack:** {', '.join(info['stack'])}")
     if info['instalar']:
-        lineas.append(f"**Instalar:** `{'` · `'.join(info['instalar'])}`")
+        lineas.append(f"**Install:** `{'` · `'.join(info['instalar'])}`")
     if info['correr']:
-        lineas.append('**Correr:** ' + ' · '.join(f'`{c}`' for c in info['correr']))
+        lineas.append('**Run:** ' + ' · '.join(f'`{c}`' for c in info['correr']))
     if info['tests']:
         lineas.append('**Tests:** ' + ' · '.join(f'`{c}`' for c in info['tests']))
     if info['estructura']:
-        lineas.append(f"**Estructura:** {' '.join(info['estructura'])}")
-    lineas.append("\nRecordá la regla de puertos del proyecto (el 3000 es de Jarvis) "
-                  "al levantar cualquier server — ver [[regla-de-puertos]].")
+        lineas.append(f"**Structure:** {' '.join(info['estructura'])}")
+    lineas.append("\nRemember the project port rule (3000 is Jarvis) "
+                  "when starting any server — see [[regla-de-puertos]].")
     return '\n'.join(lineas)
 
 
@@ -166,11 +166,11 @@ def sembrar_scan(project_path: str, hoy: str = None) -> bool:
         return False
     hoy = hoy or date.today().isoformat()
     resumen = f"Stack {', '.join(info['stack'])}" + (
-        f" — correr: {info['correr'][0].split('  ')[0]}" if info['correr'] else '')
+        f" — run: {info['correr'][0].split('  ')[0]}" if info['correr'] else '')
     try:
         with open(dest, 'w', encoding='utf-8') as f:
-            f.write(f"---\ntitulo: Stack y comandos del proyecto (auto-detectado)\n"
-                    f"tags: [stack, comandos, arranque]\ncategoria: entorno\n"
+            f.write(f"---\ntitulo: Project stack and commands (auto-detected)\n"
+                    f"tags: [stack, commands, startup]\ncategoria: entorno\n"
                     f"resumen: {resumen}\n"
                     f"creado: {hoy}\nactualizado: {hoy}\nautor: scan-automatico\n"
                     f"estado: vigente\norigen: scan-automatico\n---\n\n"

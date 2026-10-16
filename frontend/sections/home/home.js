@@ -40,7 +40,7 @@ function _fechaHumana(iso) {
   if (min < 60)  return _t('hace {n}m').replace('{n}', min);
   if (h   < 24)  return _t('hace {n}h').replace('{n}', h);
   if (dia < 7)   return _t('hace {n}d').replace('{n}', dia);
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' });
 }
 
 // Navegar con transición de salida (fade del body, luego location)

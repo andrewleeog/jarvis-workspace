@@ -134,9 +134,9 @@ def chequear(pid, tid, path, antes='', despues='', ahora=None):
     for pat, r in vigentes:
         if r.get('explicito') and _cubre_ruta(pat, path):
             return {'motivo': (
-                f"`{path}` es territorio de {r['nombre']}, que lo reclamó "
-                f"explícitamente. Pedile por .jarvis/MAILBOX.md antes de tocarlo "
-                f"(o esperá: el reclamo vence solo)."), 'dueno': r['nombre'],
+                f"`{path}` is territory of {r['nombre']}, who claimed it "
+                f"explicitly. Ask them via .jarvis/MAILBOX.md before touching it "
+                f"(or wait: the claim expires on its own)."), 'dueno': r['nombre'],
                 'patron': pat}
 
     # 2. Borrar o renombrar un símbolo ajeno. Solo lo que DESAPARECE — usar el
@@ -146,10 +146,10 @@ def chequear(pid, tid, path, antes='', despues='', ahora=None):
         for pat, r in vigentes:
             if pat in perdidos:
                 return {'motivo': (
-                    f"Estás por borrar o renombrar `{pat}`, que es de "
-                    f"{r['nombre']}. Si de verdad tiene que irse, avisale por "
-                    f".jarvis/MAILBOX.md y que lo adapte él — si lo sacás ahora, "
-                    f"su código se rompe sin que se entere."),
+                    f"You are about to delete or rename `{pat}`, which belongs to "
+                    f"{r['nombre']}. If it really has to go, tell them via "
+                    f".jarvis/MAILBOX.md and let them adapt it — removing it now "
+                    f"breaks their code without them knowing."),
                     'dueno': r['nombre'], 'patron': pat}
     return None
 
@@ -199,7 +199,7 @@ def guardar_snapshot(ruta=None, ahora=None) -> int:
         os.replace(tmp, ruta)          # atómico: nunca se lee un archivo a medias
         return len(items)
     except Exception as e:
-        print(f'[territorio] snapshot no guardado: {e}')
+        print(f'[territorio] snapshot not saved: {e}')
         return 0
 
 
@@ -237,7 +237,7 @@ def cargar_snapshot(ruta=None, ahora=None) -> int:
     except FileNotFoundError:
         return 0
     except Exception as e:
-        print(f'[territorio] snapshot no leído ({ruta}): {e}')
+        print(f'[territorio] snapshot not read ({ruta}): {e}')
         return 0
 
 

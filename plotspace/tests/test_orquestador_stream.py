@@ -68,7 +68,7 @@ def test_san_valida_passthrough():
 def test_san_no_dict():
     assert san(None, "raw")    == ("raw", [{"type": "none"}])
     assert san([1, 2], "raw")  == ("raw", [{"type": "none"}])
-    assert san("x", "")        == ("Procesado.", [{"type": "none"}])
+    assert san("x", "")        == ("Processed.", [{"type": "none"}])
 
 
 def test_san_actions_invalidas():
@@ -88,7 +88,7 @@ def test_san_ignora_un_workflow_legacy():
 def test_san_message_fallback():
     assert san({"message": None, "actions": []}, "raw-txt")[0] == "raw-txt"
     assert san({"message": "   ", "actions": []}, "raw-txt")[0] == "raw-txt"
-    assert san({"actions": []}, "")[0] == "Procesado."
+    assert san({"actions": []}, "")[0] == "Processed."
 
 
 # ── Tool-use (Fase 7): el 'message' se streamea desde el JSON PARCIAL del tool input ──
@@ -159,6 +159,6 @@ def test_tarea_del_agente_usa_su_terminal_y_refuerza_ownership():
                              ["plotspace/routers/orchestrator.py"], 42)
 
     assert "OBJETIVO: arreglar el bug." in txt
-    assert "ARCHIVOS DE TU PROPIEDAD EXCLUSIVA" in txt
+    assert "FILES EXCLUSIVELY YOURS" in txt
     assert "plotspace/routers/orchestrator.py" in txt
     assert "terminal_42.json" in txt

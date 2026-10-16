@@ -63,7 +63,7 @@ class EventBroadcaster:
             try:
                 await cb(data)
             except Exception as e:
-                print(f'[events] Listener interno falló: {e}')
+                print(f'[events] internal listener failed: {e}')
 
     # Tope global de sockets de eventos: un cliente que abre miles de WS agotaría
     # FDs/RAM del server. 200 es holgado para un uso single-user (varias pestañas).

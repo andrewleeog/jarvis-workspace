@@ -173,4 +173,4 @@ def registrar_listener() -> None:
         broadcaster.escuchar(_on_evento)
         _listener_registrado = True
     except Exception as e:           # nunca romper el arranque por esto
-        print(f'[atencion] no se pudo registrar el listener: {e}')
+        print(f"[atencion] couldn't register the listener: {e}")

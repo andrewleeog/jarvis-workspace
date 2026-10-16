@@ -31,7 +31,7 @@ def get_live(project_id: int):
         cursor = conn.cursor()
         cursor.execute('SELECT id FROM projects WHERE id = ?', (project_id,))
         if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
         cursor.execute(
             'SELECT id AS tid, nombre AS tnombre, tipo_ia AS tipo_ia '
             'FROM terminals WHERE project_id = ? AND activa = 1', (project_id,))
@@ -74,7 +74,7 @@ def swarm_grupo_detalle(project_id: int, grupo_id: str):
     from plotspace.core import swarm_grupos
     d = swarm_grupos.detalle(project_id, grupo_id)
     if not d:
-        raise HTTPException(status_code=404, detail="Ese grupo ya no existe")
+        raise HTTPException(status_code=404, detail="That group no longer exists")
     return d
 
 
@@ -276,7 +276,7 @@ async def swarm_op(body: HookOp):
                 # LIVE.md y hace broadcast, y un Edit múltiple traería N.
                 publicar=(i == len(ops) - 1))
         except Exception as e:                      # nunca romper el pane
-            print(f'[swarm] op de terminal {body.terminal_id} falló: {e}')
+            print(f'[swarm] terminal op {body.terminal_id} failed: {e}')
             r = {'estado': 'error'}
         resultados.append(r)
 
@@ -291,7 +291,7 @@ async def swarm_op(body: HookOp):
                                                r.get('nombre') or '', r['path'],
                                                o['antes'], o['despues'])
     except Exception as e:
-        print(f'[swarm] auto-reclamo falló: {e}')
+        print(f'[swarm] auto-claim failed: {e}')
 
     # Colisión por FUNCIONALIDAD: ¿esta edición borró algo que otro agente usa?
     # Se responde en el acto y el hook se lo inyecta al agente junto al
@@ -314,7 +314,7 @@ async def swarm_op(body: HookOp):
             provenance.contar_aviso_colision()
             await _avisar_colision(pid, body.terminal_id, avisos)
     except Exception as e:
-        print(f'[swarm] chequeo de colisión falló: {e}')
+        print(f'[swarm] collision check failed: {e}')
 
     # Grupos en vivo: si esta edición cambió quién está enredado con quién, el
     # ícono de las cards tiene que reaccionar YA, no en el próximo poll.
@@ -337,7 +337,7 @@ async def swarm_op(body: HookOp):
             briefing.briefing_para, body.terminal_id,
             solo_si_cambio=True)).get('texto') or ''
     except Exception as e:
-        print(f'[swarm] briefing de piggyback falló: {e}')
+        print(f'[swarm] piggyback briefing failed: {e}')
 
     return {'ops': resultados, 'avisos': avisos,
             'aviso_texto': provenance.texto_aviso_colision(avisos),
@@ -366,7 +366,7 @@ async def _publicar_grupos(pid):
         _grupos_previos[pid] = firma
         await broadcaster.broadcast(pid, {'type': 'swarm_grupos', 'grupos': grupos})
     except Exception as e:
-        print(f'[swarm] no pude publicar grupos: {e}')
+        print(f'[swarm] could not publish groups: {e}')
 
 
 async def _avisar_colision(pid, tid, avisos):
@@ -375,7 +375,7 @@ async def _avisar_colision(pid, tid, avisos):
     from plotspace.core.events import broadcaster
     for c in avisos:
         agent_live._registrar_actividad(
-            pid, f"⚠ colisión: `{c['simbolo']}` lo usa {c['nombre']} "
+            pid, f"⚠ collision: `{c['simbolo']}` lo usa {c['nombre']} "
                  f"en {c['path']}", 'alerta')
     # Nombre del ACTOR (el que borró): lo lleva el evento para que la animación
     # del Swarm le diga a la víctima QUIÉN le rompió el símbolo. Defensivo: si no
@@ -438,12 +438,12 @@ async def swarm_check(body: HookOp):
                 if otro:
                     hace_min = max(1, int((time.time() - otro['ts']) // 60))
                     return {'permitir': False, 'dueno': otro['nombre'], 'motivo': (
-                        f"Vas a REESCRIBIR ENTERO `{path}`, y {otro['nombre']} lo "
-                        f"editó hace ~{hace_min} min. Si tu copia es anterior a ese "
-                        f"cambio, se pierde sin dejar rastro. Volvé a leer el archivo "
-                        f"y editá SOLO tu zona con Edit; si de verdad necesitás "
-                        f"reescribirlo entero, avisale a {otro['nombre']} por "
-                        f".jarvis/MAILBOX.md primero.")}
+                        f"You are about to REWRITE ALL of `{path}`, y {otro['nombre']} "
+                        f"edited it ~{hace_min} min ago. If your copy predates that "
+                        f"change, it is lost without a trace. Re-read the file "
+                        f"and edit ONLY your zone with Edit; if you really need to "
+                        f"rewrite it entirely, tell {otro['nombre']} por "
+                        f".jarvis/MAILBOX.md first.")}
 
             # 2. Territorio ajeno: borrar/renombrar un símbolo de otro, o
             #    escribir dentro de una ruta que otro reclamó explícitamente.
@@ -453,7 +453,7 @@ async def swarm_check(body: HookOp):
                         'dueno': v['dueno'], 'patron': v.get('patron')}
         return {'permitir': True}
     except Exception as e:
-        print(f'[swarm] check de terminal {body.terminal_id} falló: {e}')
+        print(f'[swarm] check de terminal {body.terminal_id} failed: {e}')
         return {'permitir': True}              # ante cualquier error, dejar pasar
 
 
@@ -473,7 +473,7 @@ async def swarm_claim(body: ReclamoSwarm):
     from plotspace.core import territorio
     row = await asyncio.to_thread(agent_live._row_terminal, body.terminal_id)
     if not row:
-        return {'ok': False, 'error': 'no encuentro tu terminal'}
+        return {'ok': False, 'error': 'cannot find your terminal'}
     if body.soltar:
         territorio.soltar(row['pid'], body.terminal_id, body.patrones)
         return {'ok': True, 'soltados': body.patrones}

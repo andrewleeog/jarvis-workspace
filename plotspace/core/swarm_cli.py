@@ -144,7 +144,7 @@ async def enviar(terminal_id, para, msg, espera=False):
     if not yo:
         return {'ok': False, 'error': 'no encuentro tu terminal'}
     if not (msg or '').strip():
-        return {'ok': False, 'error': 'mensaje vacío'}
+        return {'ok': False, 'error': 'empty message'}
     pid = yo['project_id']
     destino, sugerencias = resolver_destino_unico(
         _terminales_activas(pid), para, tid_propio=terminal_id)
@@ -188,7 +188,7 @@ async def enviar(terminal_id, para, msg, espera=False):
         await agent_live.procesar_mensaje_mailbox(pid, yo['nombre'],
                                                   para.strip(), limpio)
     except Exception as e:
-        print(f'[jv] agent_live no pudo procesar el mensaje: {e}')
+        print(f"[jv] agent_live couldn't process the message: {e}")
 
     # Aviso no intrusivo al destinatario (aura de su card).
     try:
@@ -229,13 +229,13 @@ def _es_handoff(msg):
 def formatear_inbox(mensajes) -> str:
     """Texto que lee el agente. Corto y numerado; los HANDOFF van enteros."""
     if not mensajes:
-        return 'Inbox: sin mensajes nuevos.'
-    out = [f'Inbox — {len(mensajes)} mensaje(s) nuevo(s):']
+        return 'Inbox: no new messages.'
+    out = [f'Inbox — {len(mensajes)} new message(s):']
     for i, m in enumerate(mensajes, 1):
         tope = TOPE_HANDOFF if _es_handoff(m.get('msg')) else TOPE_COMUN
         texto = (m.get('msg') or '')[:tope]
-        out.append(f"{i}. de {m.get('de', '?')}: {texto}")
-    out.append('Respondé con: jv msg "<nombre>" "<tu respuesta>"')
+        out.append(f"{i}. from {m.get('de', '?')}: {texto}")
+    out.append('Reply with: jv msg "<nombre>" "<your reply>"')
     return '\n'.join(out)
 
 

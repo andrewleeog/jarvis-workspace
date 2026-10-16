@@ -42,7 +42,7 @@ def asegurar_protocolo_puertos(project_path: str):
                 f.write(nuevo)
             print(f'[puertos] Protocolo inyectado en {claude_md}')
     except Exception as e:
-        print(f'[puertos] No pude inyectar el protocolo: {e}')
+        print(f'[puertos] could not inject the protocol: {e}')
 
 
 # ─── Matar el server de un puerto (lo usa el ✕ del pill de preview) ───────────
@@ -100,12 +100,12 @@ def matar_puerto(port) -> dict:
     try:
         port = int(port)
     except (TypeError, ValueError):
-        return {'ok': False, 'pids': [], 'motivo': 'puerto inválido'}
+        return {'ok': False, 'pids': [], 'motivo': 'invalid port'}
     if port == PUERTO_JARVIS:
-        return {'ok': False, 'pids': [], 'motivo': 'es el puerto de Jarvis (3000), no se mata'}
+        return {'ok': False, 'pids': [], 'motivo': 'Jarvis port (3000) is never killed'}
     pids = pids_en_puerto(port)
     if not pids:
-        return {'ok': False, 'pids': [], 'motivo': 'no hay ningún proceso escuchando ahí'}
+        return {'ok': False, 'pids': [], 'motivo': 'no process is listening there'}
     muertos = []
     yo = os.getpid()
     for pid in pids:
@@ -117,4 +117,4 @@ def matar_puerto(port) -> dict:
         except Exception:
             pass
     return {'ok': bool(muertos), 'pids': muertos,
-            'motivo': '' if muertos else 'no pude terminar el proceso'}
+            'motivo': '' if muertos else 'could not terminate the process'}

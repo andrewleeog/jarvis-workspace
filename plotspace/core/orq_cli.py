@@ -94,7 +94,7 @@ def error_de_resultado(resultado) -> OrqCliError:
     — antes el chat mostraba «sin resultado utilizable» y el motivo real (sin
     login, sin cuota) se perdía."""
     texto = ((resultado or {}).get('texto') or '').strip() or 'sin resultado'
-    return OrqCliError(f'el CLI terminó con error: {texto[:300]}', diagnosticar(texto)['codigo'])
+    return OrqCliError(f'the CLI finished with an error: {texto[:300]}', diagnosticar(texto)['codigo'])
 
 
 # ─── Capa pura ────────────────────────────────────────────────────────────────
@@ -154,11 +154,11 @@ def prompt_desde_mensajes(mensajes: list) -> str:
     if len(mensajes) == 1:
         return _texto(mensajes[0].get('content'))
 
-    partes = ['[Historial del thread — turnos previos de esta conversación]']
+    partes = ['[Thread history — previous turns of this conversation]']
     for m in mensajes[:-1]:
         rol = 'Usuario' if m.get('role') == 'user' else 'Jarvis (vos)'
         partes.append(f'<{rol}>\n{_texto(m.get("content"))}\n</{rol}>')
-    partes.append('[Fin del historial — el mensaje ACTUAL viene ahora]\n')
+    partes.append('[End of history — the CURRENT message follows]\n')
     partes.append(_texto(mensajes[-1].get('content')))
     return '\n'.join(partes)
 
@@ -236,7 +236,7 @@ async def stream(prompt: str, system_prompt: str, model: str, cwd: str = None,
     Timeout DURO de pared: al vencer se mata el proceso (sin --max-turns en
     esta versión del CLI, este es el freno real)."""
     if not shutil.which(BIN):
-        raise OrqCliError('el CLI `claude` no está instalado o no está en el PATH')
+        raise OrqCliError('the `claude` CLI is not installed or not in PATH')
     if timeout_s is None:
         timeout_s = TIMEOUT_S
 
@@ -263,11 +263,11 @@ async def stream(prompt: str, system_prompt: str, model: str, cwd: str = None,
         while True:
             restante = deadline - asyncio.get_event_loop().time()
             if restante <= 0:
-                raise OrqCliError(f'el orquestador tardó más de {int(timeout_s)}s — corté la llamada')
+                raise OrqCliError(f'the orchestrator took more than {int(timeout_s)}s — aborted the call')
             try:
                 linea = await asyncio.wait_for(proc.stdout.readline(), timeout=restante)
             except asyncio.TimeoutError:
-                raise OrqCliError(f'el orquestador tardó más de {int(timeout_s)}s — corté la llamada')
+                raise OrqCliError(f'the orchestrator took more than {int(timeout_s)}s — aborted the call')
             if not linea:
                 break
             texto_linea = linea.decode('utf-8', errors='replace')
@@ -282,8 +282,8 @@ async def stream(prompt: str, system_prompt: str, model: str, cwd: str = None,
                 del cola_cruda[:-6]
         rc = await proc.wait()
         if not hubo_resultado:
-            detalle = ' · '.join(cola_cruda[-3:]) or f'exit={rc} sin salida'
-            raise OrqCliError(f'claude -p terminó sin resultado ({detalle})')
+            detalle = ' · '.join(cola_cruda[-3:]) or f'exit={rc} with no output'
+            raise OrqCliError(f'claude -p finished with no result ({detalle})')
     finally:
         if proc.returncode is None:
             proc.kill()

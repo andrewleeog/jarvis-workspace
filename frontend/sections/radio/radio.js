@@ -70,7 +70,7 @@
 
   const _esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const _t = (s) => (root.JarvisI18n && root.JarvisI18n.t) ? root.JarvisI18n.t(s) : s;
-  const _lang = () => (root.JarvisI18n && root.JarvisI18n.lang && root.JarvisI18n.lang()) || 'es';
+  const _lang = () => (root.JarvisI18n && root.JarvisI18n.lang && root.JarvisI18n.lang()) || 'en';
   // Los contadores de YouTube llegan en el idioma del backend (es) — ver
   // RY().localizarConteo. Sin esto "vistas"/"lo están viendo" salían crudos en
   // inglés. La etiqueta de fuente usa su variante EN cuando corresponde.

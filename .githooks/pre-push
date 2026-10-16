@@ -28,7 +28,7 @@ while read local_ref local_sha remote_ref remote_sha; do
   else
     rango="$remote_sha..$local_sha"
   fi
-  if ! git log -p $rango | "$_JV_PY" "$raiz/scripts/scan_secretos.py" --origen "el push ($local_ref)"; then
+  if ! git log -p $rango | "$_JV_PY" "$raiz/scripts/scan_secretos.py" --origen "the push ($local_ref)"; then
     status=1
   fi
   # Gemelo del gate de memorias: valida el contrato de las memorias tocadas en

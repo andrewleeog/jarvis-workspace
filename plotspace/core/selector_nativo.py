@@ -104,9 +104,8 @@ def motor():
 def ayuda_instalacion() -> Optional[str]:
     """Qué instalar cuando falta la herramienta (texto para la persona)."""
     if entorno() == 'linux' and _hay_pantalla() and not (shutil.which('zenity') or shutil.which('kdialog')):
-        return idioma_ui.L(
-            'Para elegir carpetas con el selector de tu sistema instalá zenity: sudo apt install zenity',
-            "To pick folders with your system's dialog install zenity: sudo apt install zenity")
+        return ("To pick folders with your system's dialog install zenity: "
+                "sudo apt install zenity")
     return None
 
 
@@ -225,7 +224,7 @@ def elegir_carpeta(inicio: Optional[str] = None, titulo: Optional[str] = None) -
     if not _lock.acquire(blocking=False):
         raise Ocupado()
     try:
-        titulo = titulo or idioma_ui.L('Elegí la carpeta del proyecto', 'Choose the project folder')
+        titulo = titulo or 'Choose the project folder'
         inicio = _inicio_valido(inicio)
         if nombre == 'zenity':
             cmd = cmd_zenity(inicio, titulo)
@@ -246,7 +245,7 @@ def elegir_carpeta(inicio: Optional[str] = None, titulo: Optional[str] = None) -
         if _es_cancelacion(nombre, r):
             return {'ruta': None, 'cancelado': True, 'aviso': None, 'motor': nombre}
         if r.returncode != 0:
-            raise ErrorSelector(_texto(r.stderr) or f'código {r.returncode}')
+            raise ErrorSelector(_texto(r.stderr) or f'exit code {r.returncode}')
         ruta = _texto(r.stdout)
         if not ruta:
             return {'ruta': None, 'cancelado': True, 'aviso': None, 'motor': nombre}

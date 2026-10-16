@@ -158,7 +158,7 @@ async def intercambiar(code: str, verifier: str, redirect_uri: str) -> dict:
     respuesta cruda. Levanta SpotifyError si Spotify no acepta el canje."""
     cid = client_id()
     if not cid:
-        raise SpotifyError('Spotify no está configurado (SPOTIFY_CLIENT_ID)')
+        raise SpotifyError('Spotify is not configured (SPOTIFY_CLIENT_ID)')
     data = {
         'grant_type': 'authorization_code',
         'code': code,
@@ -173,10 +173,10 @@ async def intercambiar(code: str, verifier: str, redirect_uri: str) -> dict:
         async with _cliente() as client:
             resp = await client.post(_TOKEN_URL, data=data)
     except httpx.HTTPError:
-        raise SpotifyError('Spotify no respondió') from None
-    data_resp = _json_o_error(resp, error_401='No se pudo validar la sesión de Spotify')
+        raise SpotifyError('Spotify did not respond') from None
+    data_resp = _json_o_error(resp, error_401='Could not validate the Spotify session')
     if not data_resp.get('access_token'):
-        raise SpotifyError('No se pudo validar la sesión de Spotify')
+        raise SpotifyError('Could not validate the Spotify session')
     _guardar_token({
         'access_token': data_resp['access_token'],
         'refresh_token': data_resp.get('refresh_token') or '',
@@ -204,10 +204,10 @@ async def refresh() -> dict:
             return t          # otro refrescó mientras esperábamos: usar el suyo
         ref = (t.get('refresh_token') or '').strip()
         if not ref:
-            raise SpotifyError('Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+            raise SpotifyError('No Spotify session — login at ⚙ → Radio')
         cid = client_id()
         if not cid:
-            raise SpotifyError('Spotify no está configurado (SPOTIFY_CLIENT_ID)')
+            raise SpotifyError('Spotify is not configured (SPOTIFY_CLIENT_ID)')
         data = {'grant_type': 'refresh_token', 'refresh_token': ref,
                 'client_id': cid}
         sec = client_secret()
@@ -217,11 +217,11 @@ async def refresh() -> dict:
             async with _cliente() as client:
                 resp = await client.post(_TOKEN_URL, data=data)
         except httpx.HTTPError:
-            raise SpotifyError('Spotify no respondió') from None
+            raise SpotifyError('Spotify did not respond') from None
         if resp.status_code in (400, 401):
-            raise SpotifyError('Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+            raise SpotifyError('No Spotify session — login at ⚙ → Radio')
         data_resp = _json_o_error(
-            resp, error_401='Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+            resp, error_401='No Spotify session — login at ⚙ → Radio')
         nuevo = {
             'access_token': data_resp.get('access_token', ''),
             'refresh_token': data_resp.get('refresh_token') or ref,
@@ -233,18 +233,18 @@ async def refresh() -> dict:
 
 # ─── Búsqueda ────────────────────────────────────────────────────────────────
 
-def _json_o_error(resp, error_401='Spotify no respondió') -> dict:
+def _json_o_error(resp, error_401='Spotify did not respond') -> dict:
     """resp.json() o SpotifyError con mensaje según el status."""
     if resp.status_code == 401:
         raise SpotifyError(error_401)
     if resp.status_code in (403, 429):
-        raise SpotifyError('Spotify está saturado — intentá de nuevo en un momento')
+        raise SpotifyError('Spotify is rate-limited — try again in a moment')
     if resp.status_code != 200:
-        raise SpotifyError(f'Spotify respondió {resp.status_code}')
+        raise SpotifyError(f'Spotify responded {resp.status_code}')
     try:
         return resp.json()
     except ValueError:
-        raise SpotifyError('no se pudo leer la respuesta de Spotify') from None
+        raise SpotifyError('could not read the Spotify response') from None
 
 
 def _m_ss(msegundos) -> str:
@@ -287,11 +287,11 @@ async def token_para_sdk() -> dict:
     Refresca si está por vencer. SpotifyError si no hay sesión."""
     t = _leer_token() or {}
     if not t.get('access_token'):
-        raise SpotifyError('Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+        raise SpotifyError('No Spotify session — login at ⚙ → Radio')
     if t.get('expires_at', 0) <= time.time() + 30 and t.get('refresh_token'):
         t = await refresh()
     if t.get('expires_at', 0) <= time.time():
-        raise SpotifyError('Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+        raise SpotifyError('No Spotify session — login at ⚙ → Radio')
     return {'access_token': t['access_token'],
             'expires_in': max(60, int(t.get('expires_at', 0) - time.time()))}
 
@@ -306,10 +306,10 @@ async def buscar(q: str) -> list:
     venció. Devuelve items mapeados; SpotifyError si no hay sesión/config."""
     cid = client_id()
     if not cid:
-        raise SpotifyError('Spotify no está configurado (SPOTIFY_CLIENT_ID)')
+        raise SpotifyError('Spotify is not configured (SPOTIFY_CLIENT_ID)')
     t = _leer_token() or {}
     if not t.get('access_token'):
-        raise SpotifyError('Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+        raise SpotifyError('No Spotify session — login at ⚙ → Radio')
     if t.get('expires_at', 0) <= time.time() + 30:
         t = await refresh()
     try:
@@ -319,7 +319,7 @@ async def buscar(q: str) -> list:
                 params={'type': 'track', 'limit': 25, 'q': (q or '').strip()},
                 headers={'Authorization': f'Bearer {t["access_token"]}'})
     except httpx.HTTPError:
-        raise SpotifyError('Spotify no respondió') from None
-    data = _json_o_error(resp, error_401='Sin sesión de Spotify — iniciá sesión en ⚙ → Radio')
+        raise SpotifyError('Spotify did not respond') from None
+    data = _json_o_error(resp, error_401='No Spotify session — login at ⚙ → Radio')
     items = ((data.get('tracks') or {}).get('items') or [])
     return [mapear_track(it) for it in items if isinstance(it, dict)]

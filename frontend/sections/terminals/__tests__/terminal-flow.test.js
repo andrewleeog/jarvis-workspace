@@ -77,6 +77,19 @@ console.log('OK terminal-flow');
   // Basura defensiva.
   assert.strictEqual(F.lineasDeRueda({ deltaY: NaN, deltaMode: 0, rows: 40 }), 0);
   assert.strictEqual(F.FACTOR_RUEDA, 3);
+  // La velocidad configurable usa 1–6, conserva 3 como default y acepta el
+  // string de localStorage. El mismo factor gobierna scrollback y TUIs.
+  assert.strictEqual(F.normalizarVelocidadRueda(undefined), 3);
+  assert.strictEqual(F.normalizarVelocidadRueda(null), 3);
+  assert.strictEqual(F.normalizarVelocidadRueda(''), 3);
+  assert.strictEqual(F.normalizarVelocidadRueda('5'), 5);
+  assert.strictEqual(F.normalizarVelocidadRueda('0'), 1);
+  assert.strictEqual(F.normalizarVelocidadRueda('99'), 6);
+  assert.strictEqual(F.normalizarVelocidadRueda('basura'), 3);
+  assert.strictEqual(F.lineasDeRueda({ deltaY: 3, deltaMode: 1, rows: 40, factor: 1 }), 3);
+  assert.strictEqual(F.lineasDeRueda({ deltaY: 3, deltaMode: 1, rows: 40, factor: 6 }), 18);
+  assert.strictEqual(F.lineasDeRueda({ deltaY: 3, deltaMode: 1, rows: 40, factor: 2, turbo: true }), 30,
+    'Alt mantiene turbo en 5× la velocidad elegida');
   console.log('OK lineasDeRueda');
 }
 

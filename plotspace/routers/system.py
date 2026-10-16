@@ -201,7 +201,7 @@ threading.Thread(target=_asegurar_firma_boot, daemon=True,
                  name='jarvis-firma-boot').start()
 
 
-_TITULO = "Hay una nueva versión"
+_TITULO = "A new version is available"
 
 
 # ─── Novedades auto-detectadas (como los títulos vivos de las terminales) ─────
@@ -485,7 +485,7 @@ _PRESENCE_SECCIONES = {
 
 # Último estado que reportó el frontend (in-memory; se pierde al reiniciar y el
 # frontend lo re-reporta en el primer tick). Sin persistencia a propósito.
-_PRESENCE = {'seccion': None, 'locale': 'es', 'project_id': None, 'proyecto': None}
+_PRESENCE = {'seccion': None, 'locale': 'en', 'project_id': None, 'proyecto': None}
 
 # Keys de los art assets subidos al Discord Developer Portal (son
 # deployment-specific → env-overridable). El usuario subió el icono con la key
@@ -579,7 +579,7 @@ def _set_presence(payload: dict) -> None:
 def _payload_presence() -> dict:
     """Contenido de la tarjeta que consume el lanzador (GET /presence)."""
     st = _PRESENCE
-    locale = st.get('locale') or 'es'
+    locale = st.get('locale') or 'en'
     activos, trabajando = _conteo_agentes(st.get('project_id'))
     if trabajando > 0:
         small_text = f'{trabajando} working' if locale == 'en' else f'{trabajando} trabajando'
@@ -616,7 +616,7 @@ def _canary_import(modulo: str = 'plotspace.main') -> tuple:
             cwd=_REPO_ROOT, capture_output=True, text=True, timeout=120,
         )
     except subprocess.TimeoutExpired:
-        return (False, 'El chequeo de arranque tardó más de 120s')
+        return (False, 'Startup check took over 120s')
     if r.returncode == 0:
         return (True, '')
     cola = (r.stderr or '').strip().splitlines()[-8:]
@@ -742,7 +742,7 @@ def reiniciar_servidor(retraso: float = 1.0):
         try:
             _reexec()
         except Exception as e:   # si el exec falla, el server viejo sigue vivo
-            print(f'[system] re-exec falló: {e}')
+            print(f'[system] re-exec failed: {e}')
     threading.Thread(target=_demorado, daemon=True, name='jarvis-reexec').start()
 
 
@@ -810,7 +810,7 @@ def _payload_version(_loop: str):
             'proxima':    proxima,
             'hay_update': hay,
             'agentes_trabajando': _agentes_trabajando(),
-            'titulo':     titulo or f"Versión {disponible} disponible",
+            'titulo':     titulo or f"Version {disponible} available",
             'novedades':  novedades,
             'event_loop': _loop,
             'loop_degradado': _loop_mal,
@@ -929,7 +929,7 @@ def restart():
         _logs.evento('canary_fallo', nivel='error', detalle=(err or '')[:2000])
         return JSONResponse(status_code=409, content={
             'ok': False,
-            'error': 'El código nuevo no arranca — la actualización no se aplicó.',
+            'error': 'The new code fails to start — update not applied.',
             'detalle': err,
         })
     git = _estado_git()

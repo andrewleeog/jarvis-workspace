@@ -197,15 +197,15 @@ def lint_memorias(project_path: str, hoy: str = None, usados: set = None) -> dic
             if len(meta['titulo']) < _MIN_TITULO:
                 faltas.append('titulo-vago')
             if meta['lineas_cuerpo'] > _MAX_LINEAS_CUERPO:
-                faltas.append(f'demasiado-largo ({meta["lineas_cuerpo"]} líneas — ¿informe?)')
+                faltas.append(f'demasiado-largo ({meta["lineas_cuerpo"]} lines — report?)')
             if not meta['fecha']:
                 faltas.append('sin-fecha')
             if meta['categoria'] == mcat.SIN_CLASIFICAR:
-                faltas.append('sin-clasificar (poné categoria:)')
+                faltas.append('sin-clasificar (set categoria:)')
             if not meta['estado_explicito']:
                 faltas.append('sin-estado (vigente|obsoleta|lapida|archivo)')
             if _FECHA_TITULO_RE.search(meta['titulo']) or _FECHA_TITULO_RE.search(slug):
-                faltas.append('titulo-con-fecha (¿bitácora? la fecha va en creado:)')
+                faltas.append('titulo-con-fecha (diary? the date goes in creado:)')
             if faltas:
                 out['contrato'].append({'slug': slug, 'faltas': faltas})
                 c['contrato'] += 1
@@ -214,8 +214,8 @@ def lint_memorias(project_path: str, hoy: str = None, usados: set = None) -> dic
         if meta['estado'] == 'vigente' and meta['reemplazada_por']:
             out['incoherencias'].append({
                 'slug': slug,
-                'motivo': f"vigente pero marcada reemplazada-por {meta['reemplazada_por']} "
-                          "— archivala o quitá el campo"})
+                'motivo': f"vigente but marked reemplazada-por {meta['reemplazada_por']} "
+                          "— archive it or drop the field"})
 
     out['huerfanas'] = sorted(set(fuentes) - con_link)
     for slug in out['huerfanas']:

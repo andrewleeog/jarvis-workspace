@@ -37,14 +37,14 @@ def test_prompt_cli_sin_tool_responder():
     assert 'tool `responder`' not in s
     assert 'JSON' in s
     # el resto del prompt (mapa, enviar_prompt, tope real) sigue intacto
-    assert '[Mapa del proyecto]' in s
+    assert '[Project map]' in s
     assert 'enviar_prompt' in s
     assert '__MAX_TERMINALES__' not in s
 
 
 def test_prompt_cli_instruye_exploracion_solo_lectura():
     s = _system_prompt_cli()
-    assert 'OJOS PROPIOS' in s
+    assert 'DIRECT CODEBASE INSPECTION' in s
     assert 'Read' in s and 'Grep' in s
     # y el prompt base (modo API) NO la trae
-    assert 'OJOS PROPIOS' not in SYSTEM_PROMPT
+    assert 'DIRECT CODEBASE INSPECTION' not in SYSTEM_PROMPT

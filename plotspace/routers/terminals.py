@@ -345,7 +345,7 @@ def _tipear_cli_visible(terminal_id: int, corto: str, max_espera: float = 15.0):
         motor.enviar_texto(terminal_id, corto)
         motor.enviar_tecla(terminal_id, 'Enter')
     except Exception as e:
-        print(f'[terminales] tipeo visible en {terminal_id} falló: {e}')
+        print(f'[terminals] visible typing on {terminal_id} failed: {e}')
 
 
 def _lanzar_tipeo_visible(terminal_id: int, corto: str):
@@ -558,9 +558,9 @@ def _preparar_proyecto_sync(project_path: str, project_id: Optional[int] = None)
     if not os.path.isdir(project_path):
         try:
             os.makedirs(project_path, exist_ok=True)
-            print(f'[proyecto] Creé la carpeta del proyecto: {project_path}')
+            print(f'[proyecto] Created project folder: {project_path}')
         except Exception as e:
-            print(f'[proyecto] ERROR: no pude crear {project_path}: {e}')
+            print(f'[proyecto] ERROR: could not create {project_path}: {e}')
             return project_path
     try:
         _asegurar_git(project_path)
@@ -579,7 +579,7 @@ def _preparar_proyecto_sync(project_path: str, project_id: Optional[int] = None)
         from plotspace.core.agent_live import asegurar_live
         asegurar_live(project_path)
     except Exception as e:
-        print(f'[proyecto] Excepción: {e}')
+        print(f'[proyecto] Exception: {e}')
     return project_path
 
 
@@ -658,20 +658,20 @@ def _inyectar_skills_en_proyecto(project_id: int, project_path: str):
         # git y un system prompt que nunca repite byte a byte entre sesiones).
         bloque = [
             _SKILLS_MARKER_START,
-            '## INSTRUCCIÓN OBLIGATORIA',
+            '## MANDATORY INSTRUCTION',
             '',
-            'Antes de responder cualquier pregunta sobre tu configuración, '
-            'plugins activos, skills, o estado del proyecto:',
-            '1. Leer este archivo CLAUDE.md completo',
-            '2. Basar tu respuesta ÚNICAMENTE en lo que dice este archivo',
-            '3. NO usar memoria de conversaciones anteriores para esto',
+            'Before answering any question about your configuration, '
+            'active plugins, skills, or the state of the project:',
+            '1. Read this CLAUDE.md file in full',
+            '2. Base your answer ONLY on what this file says',
+            '3. Do NOT use memory from previous conversations for this',
             '',
-            '## Skills y plugins activos del proyecto',
+            '## Project skills and active plugins',
             '',
         ]
 
         if plugins_activos:
-            bloque.append('### 🔌 Plugins activos')
+            bloque.append('### 🔌 Active plugins')
             bloque.append('')
             for p in plugins_activos:
                 pid = p['nombre'].split('@')[0]
@@ -680,7 +680,7 @@ def _inyectar_skills_en_proyecto(project_id: int, project_path: str):
             bloque.append('')
 
         if skills_md:
-            bloque.append('### 📋 Skills del proyecto')
+            bloque.append('### 📋 Project skills')
             bloque.append('')
             for s in skills_md:
                 bloque.append(f'#### {s["nombre"]}')
@@ -691,14 +691,14 @@ def _inyectar_skills_en_proyecto(project_id: int, project_path: str):
                 if s['nombre'] == 'qa-browser-jarvis':
                     bloque.append(
                         f'Skill {s["nombre"]} — ver `.claude/skills/{s["nombre"]}.md` '
-                        '(cómo verificar en browser + correr los tests)'
+                        '(how to verify in the browser + run the tests)'
                     )
                 else:
                     bloque.append(s['contenido'])
                 bloque.append('')
 
         if skills_manuales:
-            bloque.append('### 📝 Notas adicionales')
+            bloque.append('### 📝 Additional notes')
             bloque.append('')
             for s in skills_manuales:
                 bloque.append(f'#### {s["nombre"]}')
@@ -710,7 +710,7 @@ def _inyectar_skills_en_proyecto(project_id: int, project_path: str):
                 bloque.append('')
 
         if not plugins_activos and not skills_md and not skills_manuales:
-            bloque.append('_No hay plugins ni skills activos para este proyecto._')
+            bloque.append('_No active plugins or skills for this project._')
             bloque.append('')
 
         bloque.append(_SKILLS_MARKER_END)
@@ -734,7 +734,7 @@ def _inyectar_skills_en_proyecto(project_id: int, project_path: str):
         with open(out_path, 'w', encoding='utf-8') as f:
             f.write(contenido_final)
     except Exception as e:
-        print(f'[skills] Error inyectando skills en {project_path}: {e}')
+        print(f'[skills] Error injecting skills into {project_path}: {e}')
 
 
 def _strip_skills_block(md: str) -> str:
@@ -848,12 +848,12 @@ def _crear_sesion_tmux_sync(terminal_id: int, cwd: str, comando_cli: Optional[st
     if not os.path.isdir(cwd):
         try:
             os.makedirs(cwd, exist_ok=True)
-            print(f'[tmux] cwd {cwd} no existía, lo creé')
+            print(f'[tmux] cwd {cwd} did not exist, created it')
         except Exception as e:
-            print(f'[tmux] ERROR: cwd {cwd} no existe y no se pudo crear: {e}')
+            print(f'[tmux] ERROR: cwd {cwd} does not exist and could not be created: {e}')
             # Última red de seguridad: home, pero log explícito
             cwd = os.path.expanduser('~')
-            print(f'[tmux] WARNING: usando {cwd} como fallback')
+            print(f'[tmux] WARNING: using {cwd} as fallback')
     cwd_real = cwd
 
     # Variables del ENTORNO DE SESIÓN. Son decisiones de PRODUCTO (qué CLI, qué
@@ -888,7 +888,7 @@ def _crear_sesion_tmux_sync(terminal_id: int, cwd: str, comando_cli: Optional[st
             entorno['CODEX_HOME'] = home
             print(f'[tmux] {nombre}: CODEX_HOME={home}')
     except Exception as e:
-        print(f'[tmux] aviso: no pude setear CODEX_HOME para {nombre}: {e}')
+        print(f'[tmux] warning: could not set CODEX_HOME for {nombre}: {e}')
 
     # Toolchain Node de WSL: se antepone al PATH del pane ANTES de lanzar el CLI
     # (más abajo, dentro del comando). El workspace es un dir Linux → Windows NO
@@ -915,7 +915,7 @@ def _crear_sesion_tmux_sync(terminal_id: int, cwd: str, comando_cli: Optional[st
     try:
         cmd_cli = comando_cli or _launch_command_de_terminal(terminal_id, es_reanudacion)
     except Exception as e:
-        print(f'[tmux] {nombre}: no pude computar el CLI de arranque: {e}')
+        print(f'[tmux] {nombre}: could not compute the startup CLI: {e}')
         cmd_cli = comando_cli
     try:
         tipo_ia = _tipo_ia_de(terminal_id)
@@ -1021,7 +1021,7 @@ def _reconciliar_tmux_sync(zombie_ids: set) -> set:
         # (auditoría 2026-07-02).
         sufijo = session[len('jarvis_'):]
         if sufijo.isdigit() and int(sufijo) in zombie_ids:
-            print(f'[startup] Matando sesión zombi {session} (activa=0 en DB — teardown perdido)')
+            print(f'[startup] Killing zombie session {session} (activa=0 in DB — lost teardown)')
             motor.matar_sesion_por_nombre(session)
             sesiones_vivas.discard(session)
             continue
@@ -1064,7 +1064,7 @@ async def reconciliar_sesiones_tmux():
             session      = f'jarvis_{terminal_id}'
 
             if session not in sesiones_vivas:
-                print(f'[startup] Recreando sesión tmux para terminal {terminal_id} ({nombre})')
+                print(f'[startup] Recreating tmux session for terminal {terminal_id} ({nombre})')
                 try:
                     # es_reanudacion=True: esta sesión estaba VIVA y murió con el reboot
                     # (activa=1 sin sesión tmux) → el CLI arranca en modo resume para
@@ -1073,10 +1073,10 @@ async def reconciliar_sesiones_tmux():
                     await _crear_sesion_tmux(terminal_id, project_path, es_reanudacion=True)
                     await asyncio.sleep(gap)   # trickle: espaciar los arranques de CLI
                 except Exception as e:
-                    print(f'[startup] Error recreando sesión {session}: {e}')
+                    print(f'[startup] Error recreating session {session}: {e}')
 
     except Exception as e:
-        print(f'[startup] Error en reconciliar_sesiones_tmux: {e}')
+        print(f'[startup] Error in reconciliar_sesiones_tmux: {e}')
     finally:
         # Señal para diferir Whisper hasta que el trickle de CLIs pase el pico.
         try:
@@ -1470,14 +1470,14 @@ async def crear_terminal(project_id: int, terminal: TerminalCreate):
         cursor.execute('SELECT id, ruta FROM projects WHERE id = ?', (project_id,))
         project = cursor.fetchone()
         if not project:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         cursor.execute(
             'SELECT COUNT(*) AS cnt FROM terminals WHERE project_id = ? AND activa = 1',
             (project_id,)
         )
         if cursor.fetchone()['cnt'] >= MAX_TERMINALES:
-            raise HTTPException(status_code=400, detail=f"Máximo {MAX_TERMINALES} terminales por workspace")
+            raise HTTPException(status_code=400, detail=f"Maximum {MAX_TERMINALES} terminals per workspace")
 
         nombre = resolver_nombre_unico(_nombres_activos(cursor, project_id),
                                        terminal.nombre.strip() or "Terminal")
@@ -1501,13 +1501,13 @@ async def crear_terminal(project_id: int, terminal: TerminalCreate):
     try:
         await _preparar_proyecto(project_path, project_id=project_id)
     except Exception as e:
-        print(f'[crear_terminal] Error preparando proyecto: {e}')
+        print(f'[crear_terminal] Error preparing project: {e}')
 
     # 2. Crear sesión tmux con cwd en el proyecto (no worktree)
     try:
         await _crear_sesion_tmux(terminal_id, project_path)
     except Exception as e:
-        print(f'[crear_terminal] Error creando sesión tmux: {e}')
+        print(f'[crear_terminal] Error creating tmux session: {e}')
 
     return terminal_row
 
@@ -1518,7 +1518,7 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
     lote completo (evita el estado parcial 'creé 3 de 4 y falló'). Prepara el
     proyecto una vez y crea una sesión tmux por terminal."""
     if not batch.terminales:
-        raise HTTPException(status_code=400, detail="El lote no contiene terminales")
+        raise HTTPException(status_code=400, detail="The batch contains no terminals")
 
     # "Instalar un CLI": se valida ANTES de crear nada (no dejar una terminal huérfana).
     comando_instalacion = None
@@ -1526,7 +1526,7 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
         from plotspace.core import clis as _clis
         comando_instalacion = await asyncio.to_thread(_clis.comando_terminal, batch.instalar_cli)
         if not comando_instalacion:
-            raise HTTPException(status_code=400, detail="ese agente no se instala por comando")
+            raise HTTPException(status_code=400, detail="that agent cannot be installed via a command")
 
     conn = get_db()
     try:
@@ -1535,7 +1535,7 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
         cursor.execute('SELECT id, ruta FROM projects WHERE id = ?', (project_id,))
         project = cursor.fetchone()
         if not project:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         cursor.execute(
             'SELECT COUNT(*) AS cnt FROM terminals WHERE project_id = ? AND activa = 1',
@@ -1546,7 +1546,7 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
             disponibles = max(0, MAX_TERMINALES - existentes)
             raise HTTPException(
                 status_code=400,
-                detail=f"Máximo {MAX_TERMINALES} terminales por workspace (quedan {disponibles} disponibles)",
+                detail=f"Maximum {MAX_TERMINALES} terminals per workspace ({disponibles} slots left)",
             )
 
         project_path = project['ruta']
@@ -1575,7 +1575,7 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
     try:
         await _preparar_proyecto(project_path, project_id=project_id)
     except Exception as e:
-        print(f'[crear_terminales_batch] Error preparando proyecto: {e}')
+        print(f'[crear_terminales_batch] Error preparing project: {e}')
 
     # Carpeta de trabajo del launcher (subcarpeta del proyecto). Validación
     # anti-escape: el path resuelto DEBE quedar dentro de la raíz del proyecto.
@@ -1586,14 +1586,14 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
         if candidata == raiz or candidata.startswith(raiz + os.sep):
             cwd_lote = candidata  # _crear_sesion_tmux la crea si no existe
         else:
-            print(f'[crear_terminales_batch] carpeta fuera del proyecto, ignorada: {batch.carpeta}')
+            print(f'[crear_terminales_batch] folder outside the project, ignored: {batch.carpeta}')
 
     # 2. Una sesión tmux por terminal
     for terminal_id in nuevas_ids:
         try:
             await _crear_sesion_tmux(terminal_id, cwd_lote)
         except Exception as e:
-            print(f'[crear_terminales_batch] Error creando sesión tmux {terminal_id}: {e}')
+            print(f'[crear_terminales_batch] Error creating tmux session {terminal_id}: {e}')
 
     # 3. "Command Room": comando inicial en las terminales Bash del lote
     #    (las de IA lo ignoran — el agente toma el shell al conectar).
@@ -1621,9 +1621,9 @@ async def crear_terminales_batch(project_id: int, batch: TerminalBatchCreate):
                 await asyncio.to_thread(
                     motor_terminales().enviar_tecla, terminal_id, 'Enter')
             except subprocess.TimeoutExpired:
-                print(f'[batch] send-keys timeout en terminal {terminal_id}')
+                print(f'[batch] send-keys timeout on terminal {terminal_id}')
                 continue
-            print(f'[batch] Comando inicial en terminal {terminal_id}: {comando}')
+            print(f'[batch] Initial command on terminal {terminal_id}: {comando}')
 
     # Devolver en el orden de creación
     return [filas[tid] for tid in nuevas_ids]
@@ -1666,7 +1666,7 @@ async def obtener_snapshot(terminal_id: int):
     lo compara contra el buffer de xterm. Si difieren con tmux limpio, el daño
     está en el render del browser. Ver terminal-diagnostico.js / _snapshot_pane."""
     if not _sesion_tmux_existe(terminal_id):
-        raise HTTPException(status_code=404, detail="Sesión tmux no existe")
+        raise HTTPException(status_code=404, detail="Tmux session does not exist")
     lineas = await asyncio.to_thread(_snapshot_pane, terminal_id)
     return {'lineas': lineas}
 
@@ -1680,7 +1680,7 @@ def actualizar_terminal(terminal_id: int, datos: TerminalUpdate):
         cursor.execute('SELECT id, project_id FROM terminals WHERE id = ?', (terminal_id,))
         fila = cursor.fetchone()
         if not fila:
-            raise HTTPException(status_code=404, detail="Terminal no encontrada")
+            raise HTTPException(status_code=404, detail="Terminal not found")
 
         if datos.nombre is not None:
             nombre = resolver_nombre_unico(
@@ -1785,7 +1785,7 @@ async def subir_imagen_terminal(terminal_id: int, req: ImageUploadRequest):
     # así que validar la longitud del string evita materializar en RAM un body
     # gigante. Mismo criterio que voice.py con MAX_AUDIO_BYTES (413 al pasarse).
     if len(req.image_base64) > MAX_UPLOAD_BYTES * 4 // 3 + 16:
-        raise HTTPException(status_code=413, detail='Imagen demasiado grande')
+        raise HTTPException(status_code=413, detail='Image too large')
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     # Limpiar uploads viejos en cada subida (evita que el dir crezca sin techo).
@@ -1796,14 +1796,14 @@ async def subir_imagen_terminal(terminal_id: int, req: ImageUploadRequest):
     try:
         datos = base64.b64decode(req.image_base64)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Imagen base64 inválida: {e}')
+        raise HTTPException(status_code=400, detail=f'Invalid base64 image: {e}')
     if len(datos) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail='Imagen demasiado grande')
+        raise HTTPException(status_code=413, detail='Image too large')
     try:
         with open(destino, 'wb') as f:
             f.write(datos)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f'Error guardando imagen: {e}')
+        raise HTTPException(status_code=400, detail=f'Error saving image: {e}')
     return {'path': destino}
 
 
@@ -1818,7 +1818,7 @@ async def subir_media_terminal(terminal_id: int, archivo: UploadFile = File(...)
     frontend pega en el pane."""
     es_video = (archivo.content_type or '').lower().startswith('video/')
     tope = MAX_VIDEO_BYTES if es_video else MAX_UPLOAD_BYTES
-    tipo = 'Video' if es_video else 'Imagen'
+    tipo = 'Video' if es_video else 'Image'
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     _limpiar_uploads_viejos()
@@ -1838,7 +1838,7 @@ async def subir_media_terminal(terminal_id: int, archivo: UploadFile = File(...)
                 if total > tope:
                     raise HTTPException(
                         status_code=413,
-                        detail=f'{tipo} demasiado grande (máx {tope // (1024 * 1024)} MB)',
+                        detail=f'{tipo} too large (max {tope // (1024 * 1024)} MB)',
                     )
                 f.write(chunk)
     except HTTPException:
@@ -1853,7 +1853,7 @@ async def subir_media_terminal(terminal_id: int, archivo: UploadFile = File(...)
             os.remove(destino)
         except OSError:
             pass
-        raise HTTPException(status_code=400, detail=f'Error guardando {tipo.lower()}: {e}')
+        raise HTTPException(status_code=400, detail=f'Error saving {tipo.lower()}: {e}')
     return {'path': destino}
 
 
@@ -2037,7 +2037,7 @@ async def ws_terminal(websocket: WebSocket, terminal_id: int,
         conn.close()
 
     if not terminal:
-        await websocket.send_text("\r\n\x1b[31mTerminal no encontrada o inactiva\x1b[0m\r\n")
+        await websocket.send_text("\r\n\x1b[31mTerminal not found or inactive\x1b[0m\r\n")
         await websocket.close()
         return
 
@@ -2184,7 +2184,7 @@ async def instalar_cli(cli_id: str):
     from plotspace.core.events import broadcaster
 
     if not _clis.comando_instalar(cli_id):
-        raise HTTPException(status_code=400, detail='ese agente no se instala desde acá')
+        raise HTTPException(status_code=400, detail='that agent cannot be installed from here')
 
     await broadcaster.broadcast_global({'type': 'cli_instalando', 'cli': cli_id})
     r = await asyncio.to_thread(_clis.instalar, cli_id)
@@ -2386,7 +2386,7 @@ async def _sesion_control(websocket: WebSocket, terminal_id: int, log_file: str,
                 capture_output=True, text=True, timeout=5,
             ).stdout
         except subprocess.TimeoutExpired:
-            print(f'[control] seed de {session}: tmux no respondió (timeout) — seed vacío')
+            print(f'[control] seed of {session}: tmux did not respond (timeout) — empty seed')
             return [], ''
         return info, cap
 
@@ -2404,7 +2404,7 @@ async def _sesion_control(websocket: WebSocket, terminal_id: int, log_file: str,
         ok2, cuerpo2 = await cliente.comando_con_respuesta(
             f'capture-pane -p -e -t {cliente.pane} -S -{_SEED_LINEAS}')
         if not ok1 or not ok2:
-            raise RuntimeError(f'capture por control falló: {(cuerpo1 or cuerpo2)[:1]}')
+            raise RuntimeError(f'capture via control failed: {(cuerpo1 or cuerpo2)[:1]}')
         info = (cuerpo1[0] if cuerpo1 else '').split('|')
         cap = '\n'.join(cuerpo2)
         return info, cap
@@ -2696,7 +2696,7 @@ async def _sesion_tmux(websocket: WebSocket, terminal_id: int,
         import ptyprocess
     except ImportError:
         await websocket.send_text(
-            "\r\n\x1b[31mptyprocess no instalado — ejecutá: pip install ptyprocess\x1b[0m\r\n"
+            "\r\n\x1b[31mptyprocess not installed — run: pip install ptyprocess\x1b[0m\r\n"
         )
         return
 
@@ -2919,7 +2919,7 @@ async def _sesion_tmux(websocket: WebSocket, terminal_id: int,
     except Exception as e:
         if websocket.client_state == WebSocketState.CONNECTED:
             await websocket.send_text(
-                f"\r\n\x1b[31mError conectando a tmux ({session}): {e}\x1b[0m\r\n"
+                f"\r\n\x1b[31mError connecting to tmux ({session}): {e}\x1b[0m\r\n"
             )
 
 
@@ -2950,7 +2950,7 @@ async def _monitor_keywords(terminal_id: int, project_id: int):
     # Baseline: todo lo que ya está en el pane al arrancar se ignora.
     # Evita disparar con el texto de la tarea que JARVIS acaba de enviar.
     last_capture = await _capture_tmux_output(terminal_id)
-    print(f'[monitor] Terminal {terminal_id}: baseline {len(last_capture.splitlines())} líneas')
+    print(f'[monitor] Terminal {terminal_id}: baseline {len(last_capture.splitlines())} lines')
 
     # Fast-path: el loop avanza ante (a) trigger de agent_watch que vio un TASK_*
     # fresco, o (b) el timeout de 2s (red de seguridad: peor caso == hoy). El
@@ -2998,13 +2998,13 @@ async def _monitor_keywords(terminal_id: int, project_id: int):
 
                 last_capture = capture
             except Exception as e:
-                print(f'[monitor] Error terminal {terminal_id} (reintento): {e}')
+                print(f'[monitor] Error on terminal {terminal_id} (retrying): {e}')
                 await asyncio.sleep(_MONITOR_PAUSA_ERROR)
 
     except asyncio.CancelledError:
         pass
     except Exception as e:
-        print(f'[monitor] Error terminal {terminal_id}: {e}')
+        print(f'[monitor] Error on terminal {terminal_id}: {e}')
     finally:
         # Pop CONDICIONAL: si entre que este monitor murió y el finally ya se registró
         # un monitor NUEVO para la misma terminal (recreación rápida), no borrarlo.
@@ -3036,7 +3036,7 @@ async def _procesar_keyword_evento(terminal_id: int, project_id: int, keyword: s
         from plotspace.routers.orchestrator import procesar_task_event_interno
         await procesar_task_event_interno(terminal_id, keyword, project_id, motivo=(motivo or ''))
     except Exception as e:
-        print(f'[monitor] Error notificando orquestador: {e}')
+        print(f'[monitor] Error notifying the orchestrator: {e}')
 
 
 def iniciar_monitor(terminal_id: int, project_id: int):
@@ -3045,7 +3045,7 @@ def iniciar_monitor(terminal_id: int, project_id: int):
         keyword_monitors[terminal_id].cancel()
     task = asyncio.create_task(_monitor_keywords(terminal_id, project_id))
     keyword_monitors[terminal_id] = task
-    print(f'[monitor] Iniciado para terminal {terminal_id}')
+    print(f'[monitor] Started for terminal {terminal_id}')
 
 
 def detener_monitor(terminal_id: int):
@@ -3053,7 +3053,7 @@ def detener_monitor(terminal_id: int):
     task = keyword_monitors.pop(terminal_id, None)
     if task:
         task.cancel()
-        print(f'[monitor] Detenido para terminal {terminal_id}')
+        print(f'[monitor] Stopped for terminal {terminal_id}')
 
 
 def solicitar_chequeo_inmediato(terminal_id: int):

@@ -71,7 +71,7 @@ def test_bloque_formato_y_tope():
         for i in range(8):
             _mem(d, f'm{i}', f'Cita `plotspace/core/x{i}.py` y `plotspace/core/comun.py`.')
         b = bloque_relevantes(d, ['plotspace/core/comun.py'], 'refactor', k=5)
-        assert 'MEMORIAS DEL PROYECTO' in b
+        assert 'PROJECT MEMORIES' in b
         assert b.count('  • ') == 5                  # top-K, no las 8
         assert 'INDEX.md' in b                       # siempre apunta al índice completo
 
@@ -136,7 +136,7 @@ def test_planning_recibe_memoria_relevante_al_pedido():
              'antes de levantar un dev server.', titulo='Regla de puertos',
              tags='puertos, dev-server')
         b = _bloque_memoria_para_orden(d, 'levantá un dev server para el preview')
-        assert 'Memoria' in b
+        assert 'memory' in b
         assert 'regla-de-puertos' in b
 
 

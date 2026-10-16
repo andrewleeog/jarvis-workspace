@@ -280,14 +280,14 @@ def texto_aviso_colision(colisiones) -> str:
     avisarle: un aviso que no dice qué hacer es ruido."""
     if not colisiones:
         return ''
-    lineas = ['⚠ COLISIÓN DE SUPERFICIE — acabás de borrar o renombrar algo que '
-              'otro agente está usando:']
+    lineas = ['⚠ SURFACE COLLISION — you just deleted or renamed something that '
+              'another agent is using:']
     for c in colisiones:
-        lineas.append(f"  · `{c['simbolo']}` lo usa {c['nombre']} en "
+        lineas.append(f"  · `{c['simbolo']}` is used by {c['nombre']} in "
                       f"`{c['path']}`")
-    lineas.append('Si fue a propósito, avisale por .jarvis/MAILBOX.md AHORA '
-                  '(antes de que se entere rompiéndose). Si no, revertí esa '
-                  'parte o adaptá su uso.')
+    lineas.append('If intentional, tell them via .jarvis/MAILBOX.md NOW '
+                  '(before they find out by breaking). Otherwise, revert that '
+                  'part or adapt its usage.')
     return '\n'.join(lineas)
 
 
@@ -374,7 +374,7 @@ def formato_sospechoso(tool_name, tool_input):
     if _clase_herramienta(tool_name) != 'write':
         return None
     if not isinstance(tool_input, dict):
-        return f'payload de {tool_name} no es un objeto'
+        return f'payload de {tool_name} is not an object'
     if not _primera_clave(tool_input, _CLAVES_PATH):
         return (f'{tool_name} sin ruta reconocible '
                 f'(claves recibidas: {sorted(tool_input)[:8]})')
@@ -511,7 +511,7 @@ def guardar_snapshot(ruta=None, ahora=None) -> int:
         os.replace(tmp, ruta)          # atómico: nunca se lee un archivo a medias
         return len(eds)
     except Exception as e:
-        print(f'[provenance] snapshot no guardado: {e}')
+        print(f'[provenance] snapshot not saved: {e}')
         return 0
 
 
@@ -543,5 +543,5 @@ def cargar_snapshot(ruta=None, ahora=None) -> int:
     except FileNotFoundError:
         return 0
     except Exception as e:
-        print(f'[provenance] snapshot no leído ({ruta}): {e}')
+        print(f'[provenance] snapshot not read ({ruta}): {e}')
         return 0

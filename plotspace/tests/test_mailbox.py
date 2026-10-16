@@ -235,7 +235,7 @@ def test_armar_digest_corto_y_accionable():
     msgs = [{'de': 'Backend', 'msg': 'cambié el endpoint a /api/v2'},
             {'de': 'Frontend', 'msg': 'x' * 500}]
     d = armar_digest(msgs)
-    assert '2 mensajes' in d
+    assert '2 messages' in d
     assert 'de Backend: cambié el endpoint' in d
     assert 'MAILBOX.md' in d
     assert len(d) < 800, 'el digest no puede ser un choclo'

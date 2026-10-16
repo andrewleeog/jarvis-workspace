@@ -40,9 +40,7 @@ def comando_restore_shell(project_path: str, terminal_id: int):
     if not os.path.exists(snap):
         return None
     q = shlex.quote(snap)
-    from plotspace.core.idioma_ui import L
-    marca = L('— sesión anterior restaurada (los procesos no siguen vivos) —',
-              '— previous session restored (its processes are no longer running) —')
+    marca = '— previous session restored (its processes are no longer running) —'
     return f"cat {q} 2>/dev/null; echo {shlex.quote(marca)}"
 
 

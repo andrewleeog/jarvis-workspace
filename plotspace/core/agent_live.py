@@ -378,13 +378,13 @@ def armar_snapshot(project_id: int, rows: list, archivos: dict, duenos: dict,
 _ESTADOS_CONOCIDOS = ('trabajando', 'idle', 'caido', 'sin_sesion')
 
 _EMOJI_ESTADO = {
-    'trabajando': '🟢 trabajando',
+    'trabajando': '🟢 working',
     'idle':       '⚪ idle',
     # Los dos muertos. El texto lo lee un humano en la pestaña Live, pero el 💀
     # lo lee el guard de propiedad (scripts/guard_propiedad.py) para dejar de
     # bloquear commits en nombre de un agente que ya no está.
-    'caido':      '💀 caído (su CLI se cerró)',
-    'sin_sesion': '💀 caído (sin sesión tmux)',
+    'caido':      '💀 down (its CLI exited)',
+    'sin_sesion': '💀 down (no tmux session)',
 }
 _EMOJI_PERMISO = {'pendiente': '⏳', 'ok': '✅', 'no': '⛔'}
 
@@ -392,37 +392,37 @@ _EMOJI_PERMISO = {'pendiente': '⏳', 'ok': '✅', 'no': '⛔'}
 def generar_live_md(snapshot: dict, ahora_str: str) -> str:
     """Markdown de .jarvis/LIVE.md a partir de un snapshot. Solo writes
     (leer no genera conflicto — los reads van por la API, no acá)."""
-    out = ['# LIVE — qué está haciendo cada agente (auto-generado, NO editar)',
-           f'Actualizado: {ahora_str}', '']
+    out = ['# LIVE — what each agent is doing (auto-generated, do NOT edit)',
+           f'Updated: {ahora_str}', '']
     if not snapshot['agentes']:
-        out.append('Sin agentes activos.')
+        out.append('No active agents.')
     for a in snapshot['agentes']:
         out.append(f"## {a['nombre']} ({a['tipo_ia']}, terminal {a['terminal_id']}) "
                    f"— {_EMOJI_ESTADO.get(a['estado'], a['estado'])}")
         escritos = [f for f in a['archivos'] if f['writes'] > 0]
         if not escritos:
-            out.append('- (sin escrituras detectadas)')
+            out.append('- (no writes detected)')
         for f in escritos:
-            dueno = ' 🔒 dueño' if f['dueno'] else ''
+            dueno = ' 🔒 owner' if f['dueno'] else ''
             out.append(f"- `{f['path']}` — write ×{f['writes']} "
-                       f"(hace {_fmt_hace(f['hace_s'])}){dueno}")
+                       f"({_fmt_hace(f['hace_s'])} ago){dueno}")
         out.append('')
     if snapshot['permisos']:
-        out.append('## Permisos')
+        out.append('## Permissions')
         for p in snapshot['permisos']:
             emoji = _EMOJI_PERMISO.get(p['estado'], '·')
-            linea = (f"- {emoji} {p['pide']} pidió PERMISO sobre `{p['archivo']}` "
-                     f"(dueño: {p['dueno']}) — hace {_fmt_hace(p['hace_s'])}")
+            linea = (f"- {emoji} {p['pide']} requested PERMISSION over `{p['archivo']}` "
+                     f"(owner: {p['dueno']}) — {_fmt_hace(p['hace_s'])} ago")
             if p['estado'] != 'pendiente':
                 linea += f" → {p['estado'].upper()}"
                 if p['respuesta']:
                     linea += f": {p['respuesta']}"
             out.append(linea)
     if snapshot.get('reservas'):
-        out.append('## Reservas')
+        out.append('## Reservations')
         for r in snapshot['reservas']:
             out.append(f"- 🔖 `{r['path']}` — {r['nombre']} "
-                       f"(hace {_fmt_hace(r['hace_s'])})")
+                       f"({_fmt_hace(r['hace_s'])} ago)")
     return '\n'.join(out).rstrip() + '\n'
 
 
@@ -570,7 +570,7 @@ async def publicar_roster(project_id: int):
         _roster[project_id] = {r['tid'] for r in rows}
         await _publicar(project_id, rows[0]['ruta'], rows)
     except Exception as e:
-        print(f'[agent-live] publicar_roster({project_id}) falló: {e}')
+        print(f'[agent-live] publicar_roster({project_id}) failed: {e}')
 
 
 def _rows_de(project_id: int = None) -> list:
@@ -651,8 +651,8 @@ async def _registrar_conflicto(pid: int, path: str, dueno: dict, row: dict, ahor
     """No-dueño escribió archivo ajeno → actividad + WS (toast/pestaña Live).
     A los agentes NO se les avisa: el intruso ya sabe por su CLAUDE.md que
     LIVE.md existe y que la palabra del dueño manda."""
-    _registrar_actividad(pid, f"⚠ conflicto: {row['tnombre']} escribió {path} "
-                              f"(dueño: {dueno['nombre']})", 'alerta')
+    _registrar_actividad(pid, f"⚠ conflict: {row['tnombre']} wrote {path} "
+                              f"(owner: {dueno['nombre']})", 'alerta')
     rows_pid = await asyncio.to_thread(_rows_de, pid)
     await _publicar(pid, row['ruta'], rows_pid, tipo='conflicto_archivo', extra={
         'archivo': path, 'dueno_nombre': dueno['nombre'],
@@ -671,12 +671,12 @@ async def procesar_mensaje_mailbox(pid: int, de: str, para: str, msg: str):
         res, quien = aplicar_reserva(_reservas, _duenos, pid, reserva['archivo'],
                                      tid, de, time.monotonic())
         if res == 'ok':
-            _registrar_actividad(pid, f"🔖 {de} reservó {reserva['archivo']}"
+            _registrar_actividad(pid, f"🔖 {de} reserved {reserva['archivo']}"
                                       + (f" — {reserva['detalle']}" if reserva['detalle'] else ''),
                                  'reserva')
         else:
-            _registrar_actividad(pid, f"🚫 reserva de {de} sobre {reserva['archivo']} "
-                                      f"rechazada (lo tiene {quien})", 'reserva')
+            _registrar_actividad(pid, f"🚫 {de}'s reservation on {reserva['archivo']} "
+                                      f"rejected ({quien} holds it)", 'reserva')
         if rows_pid:
             await _publicar(pid, rows_pid[0]['ruta'], rows_pid)
         return
@@ -688,12 +688,12 @@ async def procesar_mensaje_mailbox(pid: int, de: str, para: str, msg: str):
     if not permiso:
         return
     if parsed['tipo'] == 'permiso':
-        _registrar_actividad(pid, f"⏳ {de} pidió PERMISO sobre {parsed['archivo']} a {para}", 'permiso')
+        _registrar_actividad(pid, f"⏳ {de} requested PERMISSION over {parsed['archivo']} to {para}", 'permiso')
         tipo = 'permiso_pedido'
     else:
         emoji = '✅' if permiso['estado'] == 'ok' else '⛔'
-        _registrar_actividad(pid, f"{emoji} {de} respondió {permiso['estado'].upper()} "
-                                  f"{parsed['archivo']} a {para}", 'permiso')
+        _registrar_actividad(pid, f"{emoji} {de} answered {permiso['estado'].upper()} "
+                                  f"on {parsed['archivo']} to {para}", 'permiso')
         tipo = 'permiso_resuelto'
     rows_pid = await asyncio.to_thread(_rows_de, pid)
     if rows_pid:
@@ -790,14 +790,14 @@ def _revisar_permisos(ahora: float) -> set:
                 # auto-OK con constancia (el guard de propiedad lee el '→ OK'
                 # del LIVE.md y desbloquea el commit del que pedía).
                 p['estado'] = 'ok'
-                p['respuesta'] = 'auto-OK: la propiedad del dueño venció sin respuesta'
-                _registrar_actividad(pid, f"✅ auto-OK a {p['pide']} sobre "
-                                          f"{p['archivo']} (la propiedad de "
-                                          f"{p['dueno']} venció)", 'permiso')
+                p['respuesta'] = "auto-OK: the owner's claim expired with no answer"
+                _registrar_actividad(pid, f"✅ auto-OK to {p['pide']} on "
+                                          f"{p['archivo']} ({p['dueno']}'s "
+                                          f"ownership expired)", 'permiso')
             else:
                 p['estado'] = 'expirado'
-                _registrar_actividad(pid, f"💨 permiso sobre {p['archivo']} expiró "
-                                          f"({p['dueno']} no respondió en "
+                _registrar_actividad(pid, f"💨 permission on {p['archivo']} expired "
+                                          f"({p['dueno']} didn't answer within "
                                           f"{PROPIEDAD_TTL_S // 60} min)", 'permiso')
                 # Escalamiento al USUARIO (lo único de coordinación que toca su
                 # chat): un permiso muerto en silencio dejaba al que pedía

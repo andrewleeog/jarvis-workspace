@@ -22,7 +22,7 @@ def test_traversal_rechazado():
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["subidos"] == [], body
-    assert any(x["motivo"] == "ruta inválida" for x in body["rechazados"]), body
+    assert any(x["motivo"] == "invalid path" for x in body["rechazados"]), body
     # No escribió nada fuera del proyecto
     parent = os.path.dirname(d.rstrip("/"))
     assert not os.path.exists(os.path.join(parent, "evil.txt"))
@@ -41,7 +41,7 @@ def test_env_rechazado():
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["subidos"] == [], body
-    assert any(x["motivo"] == "archivo sensible" for x in body["rechazados"]), body
+    assert any(x["motivo"] == "sensitive file" for x in body["rechazados"]), body
     assert not os.path.exists(os.path.join(d, "config", ".env"))
 
 
@@ -58,7 +58,7 @@ def test_segmento_ignore_dir_rechazado():
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["subidos"] == [], body
-    assert any(x["motivo"] == "carpeta ignorada" for x in body["rechazados"]), body
+    assert any(x["motivo"] == "folder ignored" for x in body["rechazados"]), body
     assert not os.path.exists(os.path.join(d, "node_modules"))
 
 

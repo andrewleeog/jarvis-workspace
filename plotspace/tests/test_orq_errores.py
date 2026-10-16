@@ -52,13 +52,12 @@ def test_error_de_resultado_conserva_el_texto_del_cli():
 
 
 def test_mensajes_accionables(monkeypatch):
-    monkeypatch.setattr(orchestrator, 'L', lambda es, en: es)
     msg = orchestrator._mensaje_error_orq(orq_cli.OrqCliError('x: Invalid API key · Please run /login'))
-    assert 'Ajustes → Cuentas' in msg
+    assert 'Settings → Accounts' in msg
     msg = orchestrator._mensaje_error_orq(orq_cli.OrqCliError("x: You've hit your limit · resets 3pm"))
-    assert 'límite de uso' in msg and 'se libera 3pm' in msg
+    assert 'usage limit' in msg and 'resets 3pm' in msg
     msg = orchestrator._mensaje_error_orq(orq_cli.OrqCliError('algo que no conocemos'))
-    assert msg.startswith('Orquestador (suscripción): ') and 'algo que no conocemos' in msg
+    assert msg.startswith('Orchestrator (subscription): ') and 'algo que no conocemos' in msg
 
 
 def _proyecto(ruta):

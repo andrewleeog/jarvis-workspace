@@ -33,17 +33,17 @@ def test_presence_reporta_el_idioma():
     assert idioma_ui.actual() == 'es'
 
 
-def test_bloque_idioma_del_orquestador_sigue_a_la_ui():
+def test_bloque_idioma_del_orquestador_es_ingles():
     from plotspace.routers.orchestrator import _bloque_idioma
-    assert 'español' in _bloque_idioma()
-    idioma_ui.fijar('en')
+    assert 'English' in _bloque_idioma()
+    idioma_ui.fijar('es')
     assert 'English' in _bloque_idioma()
 
 
 def test_motivos_del_chat_salen_en_el_idioma_de_la_ui():
     from plotspace.routers.orchestrator import _validar_enviar_prompt
     _, m = _validar_enviar_prompt({'terminal_id': 7, 'prompt': 'x'}, set())
-    assert 'no está activa' in m
+    assert 'is not active' in m
     idioma_ui.fijar('en')
     _, m = _validar_enviar_prompt({'terminal_id': 7, 'prompt': 'x'}, set())
     assert m == 'terminal #7 is not active in this project'

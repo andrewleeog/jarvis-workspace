@@ -239,8 +239,8 @@ async def _startup():
     # 0.6 Avisar temprano si falta la API key: sin esto, el primer chat al
     #     orquestador fallaba con un 500 confuso desconectado de la causa.
     if not os.environ.get('ANTHROPIC_API_KEY'):
-        print('[startup] ⚠️  ANTHROPIC_API_KEY no está seteada (plotspace/.env). '
-              'El orquestador y el Web Builder fallarán hasta configurarla.')
+        print('[startup] ⚠️  ANTHROPIC_API_KEY is not set (plotspace/.env). '
+              'The orchestrator and Web Builder will fail until you set it.')
 
     # 0.7 Salud del event loop. Si el server arrancó SIN `--loop asyncio` quedó en
     #     uvloop, que en este entorno (WSL2 + Py3.14) traba el loop ~0.4-1s de
@@ -250,9 +250,9 @@ async def _startup():
     #     system.nombre_event_loop / _comando_uvicorn.
     _loop = system.nombre_event_loop()
     if _loop == 'uvloop':
-        print('[startup] ⚠️  EVENT LOOP = uvloop — el tipeo de las terminales se '
-              'cortará ~0.4-1s cada tanto. Reiniciá con `python -m backend` (o '
-              '`--loop asyncio`, o el botón "Actualizar ahora" de la UI).')
+        print('[startup] ⚠️  EVENT LOOP = uvloop — terminal typing will '
+              'stall ~0.4-1s at a time. Restart with `python -m backend` (or '
+              '`--loop asyncio`, or the "Update now" button in the UI).')
     else:
         print(f'[startup] event loop = {_loop} ✓ (sin stall)')
 
@@ -292,7 +292,7 @@ async def _startup():
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(voice._whisper_executor, voice._cargar_whisper)
         except Exception as e:
-            print(f'[startup] Whisper preload falló: {e}')
+            print(f'[startup] Whisper preload failed: {e}')
     # Default SIN precarga: el modelo es RSS anónimo del uvicorn (small ≈ 1 GB,
     # turbo ≈ 3,2 GB) y Whisper es solo el FALLBACK del SR del browser — tenerlo
     # residente desde el boot era el 50% del "VmmemWSL gigante con cero
@@ -370,7 +370,7 @@ async def _startup():
         from plotspace.core.database import purgar_task_events
         purgar_task_events()
     except Exception as e:
-        print(f'[startup] purgar_task_events falló: {e}')
+        print(f'[startup] purgar_task_events failed: {e}')
 
     # 4. Arrancar background task STATE.md
     _state_task = asyncio.create_task(_tarea_state_md())
@@ -485,7 +485,7 @@ async def _startup():
                     f.write(linea + '\n')
             await asyncio.to_thread(_append)
         except Exception as e:
-            print(f'[diag-boot] sampler cayó: {e}')
+            print(f'[diag-boot] sampler crashed: {e}')
     _bg_tasks.append(asyncio.create_task(_diag_boot()))
 
     # 15. Cazador de STALLS del event loop (deep work 2026-07-11, 2ª vuelta):
@@ -677,7 +677,7 @@ async def _middleware_http(request: Request, call_next):
     resp = None
     if not permitido and not _exenta_de_token(path):
         if path.startswith('/api/') or request.method not in ('GET', 'HEAD'):
-            resp = JSONResponse(status_code=401, content={'detail': 'Falta el token de acceso'})
+            resp = JSONResponse(status_code=401, content={'detail': 'Missing access token'})
         else:
             resp = HTMLResponse(jarvis_auth.pagina_login_html(), status_code=401)
     # Anti DNS-rebinding: rechazar Host que no sea localhost/IP (un dominio del

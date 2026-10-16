@@ -90,31 +90,31 @@ def _bloque_de(txt, tid):
 
 def test_estado_muestra_fase_viva():
     txt = _estado({10: {'fase': 'trabajando'}, 11: {'fase': 'idle'}})
-    assert 'trabajando' in _bloque_de(txt, 10)
-    assert 'quieta' in _bloque_de(txt, 11)
+    assert 'working' in _bloque_de(txt, 10)
+    assert 'idle' in _bloque_de(txt, 11)
 
 
 def test_estado_muestra_origen_jarvis_y_libre():
     txt = _estado({10: {'fase': 'trabajando',
                         'origen': {'origen': 'jarvis', 'orquestacion': 'módulo de notas'}},
                    11: {'fase': 'idle'}})
-    assert 'lanzada por Jarvis para: módulo de notas' in _bloque_de(txt, 10)
-    assert 'ocupada' in _bloque_de(txt, 10)
-    assert 'LIBRE' in _bloque_de(txt, 11)
-    assert 'libres: #11 Claude Code #2' in txt
+    assert 'launched by Jarvis for: módulo de notas' in _bloque_de(txt, 10)
+    assert 'busy' in _bloque_de(txt, 10)
+    assert 'FREE' in _bloque_de(txt, 11)
+    assert 'free: #11 Claude Code #2' in txt
 
 
 def test_estado_muestra_archivos_editados_con_tope():
     archivos = [{'path': f'{c}.py', 'dueno': c == 'a'} for c in 'abcdefgh']
     txt = _estado({10: {'fase': 'idle', 'archivos': archivos}, 11: {}})
     b10 = _bloque_de(txt, 10)
-    assert 'editó: a.py 🔒, b.py' in b10 and '(+2 más)' in b10
-    assert 'editó' not in _bloque_de(txt, 11)
+    assert 'edited: a.py 🔒, b.py' in b10 and '(+2 more)' in b10
+    assert 'edited' not in _bloque_de(txt, 11)
 
 
 def test_estado_sin_terminales():
     from plotspace.core.orq_contexto import formatear_bloque_terminales
-    assert formatear_bloque_terminales([], {}) == 'No hay terminales activas.'
+    assert formatear_bloque_terminales([], {}) == 'No active terminals.'
 
 
 # ─── Guardas con estado VIVO ─────────────────────────────────────────────────
@@ -126,15 +126,15 @@ from plotspace.routers.orchestrator import (  # noqa: E402
 
 def test_tarea_solo_a_una_terminal_libre():
     assert _motivo_rechazo_envio({'fase': 'idle'}, False) == ''
-    assert 'trabajando' in _motivo_rechazo_envio({'fase': 'trabajando'}, False)
-    assert 'caído' in _motivo_rechazo_envio({'fase': 'idle', 'estado': 'caido'}, False)
-    assert 'pregunta' in _motivo_rechazo_envio({'fase': 'idle', 'esperando': True}, False)
+    assert 'working' in _motivo_rechazo_envio({'fase': 'trabajando'}, False)
+    assert 'down' in _motivo_rechazo_envio({'fase': 'idle', 'estado': 'caido'}, False)
+    assert 'question' in _motivo_rechazo_envio({'fase': 'idle', 'esperando': True}, False)
 
 
 def test_respuesta_solo_a_quien_espera_una():
     assert _motivo_rechazo_envio({'fase': 'idle', 'esperando': True}, True) == ''
-    assert 'ninguna pregunta' in _motivo_rechazo_envio({'fase': 'idle'}, True)
-    assert 'caído' in _motivo_rechazo_envio({'esperando': True, 'estado': 'sin_sesion'}, True)
+    assert 'no question' in _motivo_rechazo_envio({'fase': 'idle'}, True)
+    assert 'down' in _motivo_rechazo_envio({'esperando': True, 'estado': 'sin_sesion'}, True)
 
 
 def test_la_tarea_suelta_lleva_su_cierre_estructurado():
@@ -185,4 +185,4 @@ def test_procesar_respuesta_rechaza_ocupada_y_responde_crudo(tmp_path, monkeypat
         raw, SimpleNamespace(input_tokens=0, output_tokens=0),
         {'id': 1, 'ruta': str(tmp_path), 'nombre': 'P'}, req, ts, stop_reason='end_turn'))
     assert enviados == [(22, 'y', True)]
-    assert 'trabajando' in res['response']
+    assert 'working' in res['response']

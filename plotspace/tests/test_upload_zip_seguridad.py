@@ -36,7 +36,7 @@ def test_zip_slip_rechazado():
 
     body = _subir(client, pid, {"../../evil.txt": "pwned"})
     assert body["subidos"] == [], body
-    assert any(x["motivo"] == "ruta inválida" for x in body["rechazados"]), body
+    assert any(x["motivo"] == "invalid path" for x in body["rechazados"]), body
     parent = os.path.dirname(d.rstrip("/"))
     assert not os.path.exists(os.path.join(parent, "evil.txt"))
 
@@ -50,7 +50,7 @@ def test_zip_slip_un_nivel_tampoco_escapa_de_la_carpeta():
 
     body = _subir(client, pid, {"../evil.txt": "pwned", "ok.txt": "bien"})
     assert body["subidos"] == ["b/ok.txt"], body
-    assert any(x["motivo"] == "ruta inválida" for x in body["rechazados"]), body
+    assert any(x["motivo"] == "invalid path" for x in body["rechazados"]), body
     assert not os.path.exists(os.path.join(d, "evil.txt"))
     assert not os.path.exists(os.path.join(d, "b", "evil.txt"))
 
@@ -62,7 +62,7 @@ def test_zip_env_rechazado():
 
     body = _subir(client, pid, {"cfg/.env": "SECRET=1"})
     assert body["subidos"] == [], body
-    assert any(x["motivo"] == "archivo sensible" for x in body["rechazados"]), body
+    assert any(x["motivo"] == "sensitive file" for x in body["rechazados"]), body
     assert not os.path.exists(os.path.join(d, "cfg", ".env"))
 
 
@@ -74,7 +74,7 @@ def test_zip_ignore_dir_rechazado():
     body = _subir(client, pid, {".git/config": "[core]", "node_modules/x/i.js": "1"})
     assert body["subidos"] == [], body
     motivos = {x["motivo"] for x in body["rechazados"]}
-    assert motivos == {"carpeta ignorada"}, body
+    assert motivos == {"folder ignored"}, body
     assert not os.path.exists(os.path.join(d, ".git"))
     assert not os.path.exists(os.path.join(d, "node_modules"))
 

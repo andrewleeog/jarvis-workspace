@@ -30,7 +30,7 @@ def _ruta_proyecto(project_id: int) -> str:
     finally:
         conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+        raise HTTPException(status_code=404, detail="Project not found")
     return row['ruta']
 
 
@@ -144,7 +144,7 @@ def _cap_diff(diff: str) -> str:
     if len(b) <= MAX_DIFF_FILE_BYTES:
         return diff
     return b[:MAX_DIFF_FILE_BYTES].decode(errors='ignore') + \
-        '\n\n… (diff truncado para la UI — revisalo completo en una terminal)'
+        '\n\n… (diff truncated for the UI — see the full diff in a terminal)'
 
 
 def _path_relativo_seguro(base: str, rel: str):
@@ -173,7 +173,7 @@ def review_por_agente(project_id: int):
 
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
+        raise HTTPException(status_code=400, detail="The project is not a git repo")
 
     archivos_cambiados = []
 
@@ -289,17 +289,17 @@ def _stage_hunks(cwd, archivo, mios, ajenos, hp):
     (ok, motivo_si_no)."""
     rc, diff = _git(cwd, 'diff', '-U0', '--no-color', '--', archivo)
     if rc != 0 or not diff.strip():
-        return False, 'sin cambios'
+        return False, 'no changes'
     parche = hp.filtrar_parche(diff, mios, ajenos)
     if not parche:
-        return False, 'no hay cambios atribuibles a este agente (o están pegados a los de otro)'
+        return False, "no changes attributable to this agent (or they're glued to another agent's)"
     import tempfile
     fd, tmp = tempfile.mkstemp(suffix='.patch', dir=_dir_git(cwd))
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as f:
             f.write(parche)
         rc, out, err = _git_full(cwd, 'apply', '--cached', '--unidiff-zero', tmp)
-        return (True, '') if rc == 0 else (False, _error_git(out, err, 'git apply falló'))
+        return (True, '') if rc == 0 else (False, _error_git(out, err, 'git apply failed'))
     finally:
         try:
             os.unlink(tmp)
@@ -325,17 +325,17 @@ def commit_por_agente(project_id: int, body: dict = Body(default=None)):
     try:
         agente = int(agente) if agente not in (None, '') else None
     except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail="agente inválido")
+        raise HTTPException(status_code=400, detail="invalid agente")
 
     cwd = _ruta_proyecto(project_id)
 
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
+        raise HTTPException(status_code=400, detail="The project is not a git repo")
     if not isinstance(archivos, list) or not archivos:
-        raise HTTPException(status_code=400, detail="Faltan archivos para commitear")
+        raise HTTPException(status_code=400, detail="No files to commit")
     if not mensaje:
-        raise HTTPException(status_code=400, detail="Falta el mensaje de commit")
+        raise HTTPException(status_code=400, detail="Missing commit message")
 
     # Anti-traversal: cada path debe caer dentro del proyecto.
     rels = []
@@ -343,7 +343,7 @@ def commit_por_agente(project_id: int, body: dict = Body(default=None)):
         rel = _path_relativo_seguro(cwd, str(raw))
         if rel is None:
             raise HTTPException(status_code=400,
-                                detail=f"Ruta fuera del proyecto: {raw}")
+                                detail=f"Path outside the project: {raw}")
         rels.append(rel)
 
     cp, hp = _scripts()
@@ -366,11 +366,11 @@ def commit_por_agente(project_id: int, body: dict = Body(default=None)):
                 # (`commit -- paths` no arrastra lo que otro dejó staged).
                 rc, out, err = _git_full(cwd, 'add', '--', *rels)
                 if rc != 0:
-                    return {"ok": False, "error": _error_git(out, err, "git add falló")}
+                    return {"ok": False, "error": _error_git(out, err, "git add failed")}
                 args = ['commit', '-m', mensaje] + (['-m', trailer] if trailer else []) + ['--', *rels]
                 rc, out, err = _git_full(cwd, *args, timeout=GIT_COMMIT_TIMEOUT)
                 if rc != 0:
-                    return {"ok": False, "error": _error_git(out, err, "git commit falló")}
+                    return {"ok": False, "error": _error_git(out, err, "git commit failed")}
                 _, hash_ = _git(cwd, 'rev-parse', '--short', 'HEAD')
                 return {"ok": True, "commit": hash_.strip(), "por_hunk": [], "omitidos": []}
 
@@ -386,7 +386,7 @@ def commit_por_agente(project_id: int, body: dict = Body(default=None)):
                 if rc == 0:
                     staged.append(f)
                 else:
-                    omitidos.append({'path': f, 'motivo': _error_git(out, err, 'git add falló')})
+                    omitidos.append({'path': f, 'motivo': _error_git(out, err, 'git add failed')})
             subidos_por_hunk = []
             for f in por_hunk:
                 del_archivo = frags.get(_norm_path(f), {})
@@ -400,13 +400,13 @@ def commit_por_agente(project_id: int, body: dict = Body(default=None)):
                     omitidos.append({'path': f, 'motivo': motivo})
             if not staged:
                 return {"ok": False, "omitidos": omitidos,
-                        "error": "Nada de este agente para commitear: "
+                        "error": "Nothing from this agent to commit: "
                                  + '; '.join(f"{o['path']} ({o['motivo']})" for o in omitidos)}
             args = ['commit', '-m', mensaje] + (['-m', trailer] if trailer else [])
             rc, out, err = _git_full(cwd, *args, timeout=GIT_COMMIT_TIMEOUT)
             if rc != 0:
                 _git(cwd, 'reset', '-q', '--', *staged)    # no dejar el índice a medias
-                return {"ok": False, "error": _error_git(out, err, "git commit falló")}
+                return {"ok": False, "error": _error_git(out, err, "git commit failed")}
             _, hash_ = _git(cwd, 'rev-parse', '--short', 'HEAD')
             return {"ok": True, "commit": hash_.strip(), "por_hunk": subidos_por_hunk,
                     "omitidos": omitidos}
@@ -425,14 +425,14 @@ def _rels_seguros(cwd: str, archivos) -> list:
     """Valida la lista de paths del body: no vacía y todos DENTRO del proyecto.
     Un rename del porcelain llega como 'viejo -> nuevo': se expande a los dos."""
     if not isinstance(archivos, list) or not archivos:
-        raise HTTPException(status_code=400, detail="Faltan archivos")
+        raise HTTPException(status_code=400, detail="Missing files")
     rels = []
     for raw in archivos:
         for parte in str(raw).split(' -> '):
             rel = _path_relativo_seguro(cwd, parte)
             if rel is None:
                 raise HTTPException(status_code=400,
-                                    detail=f"Ruta fuera del proyecto: {raw}")
+                                    detail=f"Path outside the project: {raw}")
             if rel not in rels:
                 rels.append(rel)
     return rels
@@ -461,14 +461,14 @@ def revertir_archivos(project_id: int, body: dict = Body(default=None)):
 
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
+        raise HTTPException(status_code=400, detail="The project is not a git repo")
     rels = _rels_seguros(cwd, body.get('archivos'))
 
     from plotspace.core import wip_snapshots
     respaldo = wip_snapshots.snapshot_wip(cwd)
     if not respaldo and wip_snapshots.ultimo_fallo():
         return {"ok": False,
-                "error": "No pude guardar una copia antes de descartar, así que no descarté nada: "
+                "error": "Couldn't save a backup before discarding, so nothing was discarded: "
                          + wip_snapshots.ultimo_fallo()}
 
     nuevos = _untracked(cwd)
@@ -479,11 +479,11 @@ def revertir_archivos(project_id: int, body: dict = Body(default=None)):
         rc, out, err = _git_full(cwd, 'restore', '--source=HEAD', '--staged',
                                  '--worktree', '--', *restaurar)
         if rc != 0:
-            return {"ok": False, "error": _error_git(out, err, "git restore falló")}
+            return {"ok": False, "error": _error_git(out, err, "git restore failed")}
     if limpiar:
         rc, out, err = _git_full(cwd, 'clean', '-f', '-d', '-q', '--', *limpiar)
         if rc != 0:
-            return {"ok": False, "error": _error_git(out, err, "git clean falló")}
+            return {"ok": False, "error": _error_git(out, err, "git clean failed")}
 
     return {"ok": True, "revertidos": restaurar, "borrados": limpiar, "respaldo": respaldo}
 
@@ -501,10 +501,10 @@ def deshacer_descarte(project_id: int, body: dict = Body(default=None)):
     cwd = _ruta_proyecto(project_id)
     respaldo = str(body.get('respaldo') or '')
     if not _RE_RESPALDO.match(respaldo):
-        raise HTTPException(status_code=400, detail="Respaldo inválido")
+        raise HTTPException(status_code=400, detail="Invalid backup ref")
     rc, _ = _git(cwd, 'rev-parse', '--verify', '--quiet', respaldo + '^{commit}')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="Ese respaldo ya no existe")
+        raise HTTPException(status_code=400, detail="That backup no longer exists")
     rels = _rels_seguros(cwd, body.get('archivos'))
     # Solo lo que la foto tiene (un path ausente haría fallar el restore entero).
     rc, listado = _git(cwd, '-c', 'core.quotepath=false', 'ls-tree', '-r', '--name-only',
@@ -515,7 +515,7 @@ def deshacer_descarte(project_id: int, body: dict = Body(default=None)):
     if restaurar:
         rc, out, err = _git_full(cwd, 'restore', f'--source={respaldo}', '--worktree', '--', *restaurar)
         if rc != 0:
-            return {"ok": False, "error": _error_git(out, err, "git restore falló")}
+            return {"ok": False, "error": _error_git(out, err, "git restore failed")}
     return {"ok": True, "restaurados": restaurar}
 
 
@@ -543,7 +543,7 @@ def _gh(cwd: str, *args: str) -> tuple[int, str, str]:
                            timeout=GH_TIMEOUT)
         return r.returncode, (r.stdout or ''), (r.stderr or '')
     except FileNotFoundError:
-        return -1, '', 'gh no está instalado (https://cli.github.com)'
+        return -1, '', 'gh is not installed (https://cli.github.com)'
     except subprocess.TimeoutExpired:
         return -1, '', 'gh timeout'
     except Exception as e:
@@ -563,25 +563,25 @@ def abrir_pr(project_id: int, body: dict = Body(default=None)):
 
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
+        raise HTTPException(status_code=400, detail="The project is not a git repo")
     _, rama = _git(cwd, 'branch', '--show-current')
     rama = rama.strip()
     if not rama:
-        raise HTTPException(status_code=400, detail="HEAD desacoplado: no hay rama para el PR")
+        raise HTTPException(status_code=400, detail="Detached HEAD: no branch to open a PR from")
     base = str(body.get('base') or '').strip() or _rama_base(cwd)
     if not base:
-        raise HTTPException(status_code=400, detail="No se pudo determinar la rama base")
+        raise HTTPException(status_code=400, detail="Could not determine the base branch")
     if rama == base:
         raise HTTPException(status_code=400,
-                            detail=f"Estás en la rama base ({base}): creá una rama para abrir un PR")
+                            detail=f"You are on the base branch ({base}): create a branch to open a PR")
     rc, _ = _git(cwd, 'remote', 'get-url', 'origin')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no tiene remoto 'origin'")
+        raise HTTPException(status_code=400, detail="The project has no 'origin' remote")
 
     # El pre-push corre (sin --no-verify): el scanner de secretos sigue activo.
     rc, out, err = _git_full(cwd, 'push', '-u', 'origin', rama, timeout=GIT_COMMIT_TIMEOUT)
     if rc != 0:
-        return {"ok": False, "error": _error_git(out, err, "git push falló")}
+        return {"ok": False, "error": _error_git(out, err, "git push failed")}
 
     args = ['pr', 'create', '--base', base, '--head', rama]
     if titulo:
@@ -594,7 +594,7 @@ def abrir_pr(project_id: int, body: dict = Body(default=None)):
         # Ya había un PR para esta rama: gh lo dice con la URL — es un éxito.
         if url and 'already exists' in err:
             return {"ok": True, "url": url.group(0), "existente": True, "rama": rama, "base": base}
-        return {"ok": False, "error": _error_git(out, err, "gh pr create falló")}
+        return {"ok": False, "error": _error_git(out, err, "gh pr create failed")}
     return {"ok": True, "url": url.group(0) if url else out.strip(),
             "existente": False, "rama": rama, "base": base}
 
@@ -607,7 +607,7 @@ def estado_review(project_id: int):
 
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
+        raise HTTPException(status_code=400, detail="The project is not a git repo")
 
     # Lista de archivos con su estado
     _, porcelain = _git(cwd, 'status', '--porcelain')
@@ -636,7 +636,7 @@ def estado_review(project_id: int):
     truncado = False
     if len(diff.encode()) > MAX_DIFF_BYTES:
         diff = diff.encode()[:MAX_DIFF_BYTES].decode(errors='ignore')
-        diff += '\n\n… (diff truncado para la UI — revisalo completo en una terminal)'
+        diff += '\n\n… (diff truncated for the UI — see the full diff in a terminal)'
         truncado = True
 
     # Stats por archivo (numstat: añadidas/borradas)
@@ -736,7 +736,7 @@ def git_diff_archivo(project_id: int, path: str = Query(...)):
     cwd = _ruta_proyecto(project_id)
     rel = _path_relativo_seguro(cwd, path)
     if rel is None:
-        raise HTTPException(status_code=400, detail="Ruta fuera del proyecto")
+        raise HTTPException(status_code=400, detail="Path outside the project")
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
         return {'git': False, 'hunks': []}
@@ -764,7 +764,7 @@ def git_blame_linea(project_id: int, path: str = Query(...), line: int = Query(1
     cwd = _ruta_proyecto(project_id)
     rel = _path_relativo_seguro(cwd, path)
     if rel is None:
-        raise HTTPException(status_code=400, detail="Ruta fuera del proyecto")
+        raise HTTPException(status_code=400, detail="Path outside the project")
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
         return {'git': False}
@@ -782,10 +782,10 @@ def review_file(project_id: int, path: str = Query(...)):
     cwd = _ruta_proyecto(project_id)
     rel = _path_relativo_seguro(cwd, path)
     if rel is None:
-        raise HTTPException(status_code=400, detail="Ruta fuera del proyecto")
+        raise HTTPException(status_code=400, detail="Path outside the project")
     rc, _ = _git(cwd, 'rev-parse', '--git-dir')
     if rc != 0:
-        raise HTTPException(status_code=400, detail="El proyecto no es un repo git")
+        raise HTTPException(status_code=400, detail="The project is not a git repo")
 
     rc, original = _git(cwd, 'show', f'HEAD:{rel}')
     if rc != 0:

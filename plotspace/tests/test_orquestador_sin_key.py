@@ -52,8 +52,8 @@ def test_guard_sin_key_lanza_409_estructurado(monkeypatch):
     assert exc.value.status_code == 409
     assert exc.value.detail == {
         "error": "no_api_key",
-        "message": "Configurá ANTHROPIC_API_KEY (plotspace/.env) para usar el chat "
-                   "de Jarvis. Los agentes en terminales (BYOK) no la necesitan.",
+        "message": "Set ANTHROPIC_API_KEY (plotspace/.env) to use the Jarvis "
+                   "chat. Agents in terminals (BYOK) don't need it.",
     }
 
 

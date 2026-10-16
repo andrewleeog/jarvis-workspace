@@ -280,7 +280,7 @@ def ws_permitido(websocket) -> tuple:
 def pagina_login_html() -> str:
     """Página mínima para pegar el token. Usa los tokens de color del tema
     (/static es público: el código del front no es secreto)."""
-    return """<!doctype html><html lang="es"><head><meta charset="utf-8">
+    return """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Jarvis</title>
 <link rel="stylesheet" href="/static/shared/tokens.css">
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--ob-bg-0);
@@ -289,13 +289,12 @@ p{color:var(--ob-fg-2);margin:0 0 18px}input{width:100%;box-sizing:border-box;pa
 border:1px solid var(--ob-line-2);background:var(--ob-bg-1);color:inherit;font:inherit}
 button{margin-top:10px;width:100%;padding:10px;border:0;border-radius:8px;background:var(--ob-accent);
 color:var(--ob-on-accent);font:600 15px var(--font-ui);cursor:pointer}small{display:block;margin-top:14px;color:var(--ob-fg-2)}</style>
-</head><body><main><h1>Jarvis está protegido</h1>
-<p>Estás entrando desde otra máquina. Pegá el token de acceso.<br>
-<span lang="en">Jarvis is protected: paste the access token.</span></p>
+</head><body><main><h1>Jarvis is protected</h1>
+<p>You are signing in from another machine. Paste the access token.</p>
 <form method="get"><input name="token" autocomplete="off" autofocus placeholder="token" aria-label="token">
-<button type="submit">Entrar</button></form>
-<small>El link con el token aparece en los logs al arrancar (<code>docker logs</code>)
-y está guardado en <code>data/acceso-token</code>.</small></main></body></html>"""
+<button type="submit">Sign in</button></form>
+<small>The link with the token appears in the startup logs (<code>docker logs</code>)
+and is saved in <code>data/acceso-token</code>.</small></main></body></html>"""
 
 
 def imprimir_banner():
@@ -303,7 +302,7 @@ def imprimir_banner():
     escucha en la red, también el link con el token."""
     from plotspace.core.escucha import host_puerto_actuales
     host, port = host_puerto_actuales()
-    print(f'[jarvis] listo — abrí http://127.0.0.1:{port}')
+    print(f'[jarvis] ready — open http://127.0.0.1:{port}')
     if token_requerido():
-        print(f'[jarvis] escuchando en la red ({host}): desde otra máquina se entra con token.')
-        print(f'[jarvis] abrí  http://<ip-de-este-equipo>:{port}/?token={token_actual()}')
+        print(f'[jarvis] listening on the network ({host}): other machines sign in with the token.')
+        print(f'[jarvis] open  http://<this-machine-ip>:{port}/?token={token_actual()}')

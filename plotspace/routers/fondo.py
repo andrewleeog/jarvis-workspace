@@ -73,14 +73,14 @@ async def subir(request: Request):
     """Cuerpo = los bytes crudos de la imagen (jpeg/png/webp, ≤ 12 MB)."""
     declarado = request.headers.get("content-length")
     if declarado and declarado.isdigit() and int(declarado) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail="La imagen pesa más de 12 MB")
+        raise HTTPException(status_code=413, detail="Image is larger than 12 MB")
     datos = await request.body()
     if len(datos) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail="La imagen pesa más de 12 MB")
+        raise HTTPException(status_code=413, detail="Image is larger than 12 MB")
     if not datos:
-        raise HTTPException(status_code=400, detail="Imagen vacía")
+        raise HTTPException(status_code=400, detail="Empty image")
     if not detectar_tipo(datos[:16]):
-        raise HTTPException(status_code=415, detail="Formato no soportado (usá JPG, PNG o WebP)")
+        raise HTTPException(status_code=415, detail="Unsupported format (use JPG, PNG or WebP)")
     os.makedirs(_dir(), exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=_dir(), prefix=".fondo-")
     try:
@@ -92,7 +92,7 @@ async def subir(request: Request):
             os.remove(tmp)
         except OSError:
             pass
-        raise HTTPException(status_code=500, detail="No se pudo guardar la imagen")
+        raise HTTPException(status_code=500, detail="Could not save the image")
     return _estado()
 
 
@@ -117,5 +117,5 @@ def borrar():
     except FileNotFoundError:
         pass
     except OSError:
-        raise HTTPException(status_code=500, detail="No se pudo borrar la imagen")
+        raise HTTPException(status_code=500, detail="Could not delete the image")
     return _estado()

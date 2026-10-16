@@ -297,12 +297,12 @@ class TmuxBackend(TerminalBackend):
             cwd=espec.cwd, env=espec.entorno_proceso,
         )
         if r.returncode != 0:
-            print(f'[tmux] Error creando sesión {nombre}: {(r.stderr or "").strip()}')
+            print(f'[tmux] error creating session {nombre}: {(r.stderr or "").strip()}')
             return False
 
         self.sanear_sesion(nombre)
         self.preparar_servidor()
-        print(f'[tmux] Sesión {nombre} creada en {espec.cwd}')
+        print(f'[tmux] session {nombre} creada en {espec.cwd}')
         return True
 
     async def matar(self, terminal_id: int) -> bool:
@@ -312,7 +312,7 @@ class TmuxBackend(TerminalBackend):
             r = await self._async('tmux', 'kill-session', '-t', target,
                                   text=True, timeout=TIMEOUT_CONTROL)
         except Exception as e:
-            print(f'[tmux] kill-session {session}: excepción {e}')
+            print(f'[tmux] kill-session {session}: exception {e}')
             return False
         if r.returncode != 0 and 'find' not in (r.stderr or ''):
             print(f'[tmux] kill-session {session} rc={r.returncode}: {(r.stderr or "").strip()}')
@@ -322,7 +322,7 @@ class TmuxBackend(TerminalBackend):
             chk = await self._async('tmux', 'has-session', '-t', target,
                                     text=True, timeout=TIMEOUT_CONTROL)
             if chk.returncode == 0:
-                print(f'[tmux] ALERTA: {session} sigue VIVA tras kill-session (¿tmux trabado?)')
+                print(f'[tmux] ALERTA: {session} still ALIVE after kill-session (tmux stuck?)')
                 return False
         except Exception:
             pass
@@ -338,7 +338,7 @@ class TmuxBackend(TerminalBackend):
                 capture_output=True, timeout=TIMEOUT_CONTROL,
             )
         except subprocess.TimeoutExpired:
-            print(f'[tmux] send-keys {self.nombre_sesion(terminal_id)}: timeout (¿tmux trabado?)')
+            print(f'[tmux] send-keys {self.nombre_sesion(terminal_id)}: timeout (tmux stuck?)')
 
     def enviar_tecla(self, terminal_id: int, tecla: str) -> None:
         try:
@@ -347,7 +347,7 @@ class TmuxBackend(TerminalBackend):
                 capture_output=True, timeout=TIMEOUT_CONTROL,
             )
         except subprocess.TimeoutExpired:
-            print(f'[tmux] send-keys {self.nombre_sesion(terminal_id)}: timeout (¿tmux trabado?)')
+            print(f'[tmux] send-keys {self.nombre_sesion(terminal_id)}: timeout (tmux stuck?)')
 
     # ── lectura ──────────────────────────────────────────────────────────
     def capturar(self, terminal_id: int, lineas: Optional[int] = None,

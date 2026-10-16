@@ -109,13 +109,13 @@ def _get_project_path(project_id: int) -> str:
         cursor.execute('SELECT ruta FROM projects WHERE id = ?', (project_id,))
         row = cursor.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
         ruta = row['ruta']
     finally:
         conn.close()
 
     if not os.path.isdir(ruta):
-        raise HTTPException(status_code=404, detail="La ruta del proyecto no existe en disco")
+        raise HTTPException(status_code=404, detail="Project path does not exist on disk")
     return ruta
 
 
@@ -129,13 +129,13 @@ def _safe_join(base: str, rel: str) -> str:
     full = os.path.normpath(os.path.join(base, rel))
     base_norm = os.path.normpath(base)
     if not full.startswith(base_norm + os.sep) and full != base_norm:
-        raise HTTPException(status_code=400, detail="Ruta inválida (fuera del proyecto)")
+        raise HTTPException(status_code=400, detail="Invalid path (outside the project)")
 
     # Anti-symlink: la ruta REAL (resuelta) debe seguir dentro de la base REAL.
     real_full = os.path.realpath(full)
     real_base = os.path.realpath(base)
     if not real_full.startswith(real_base + os.sep) and real_full != real_base:
-        raise HTTPException(status_code=400, detail="Ruta inválida (fuera del proyecto)")
+        raise HTTPException(status_code=400, detail="Invalid path (outside the project)")
 
     return full
 
@@ -169,7 +169,7 @@ def _es_servible(full: str) -> bool:
 def _guard_servible(full: str) -> None:
     """Aborta con 403 si la ruta no es servible (secreto protegido)."""
     if not _es_servible(full):
-        raise HTTPException(status_code=403, detail="Archivo protegido")
+        raise HTTPException(status_code=403, detail="Protected file")
 
 
 def _leer_texto(full: str) -> str:
@@ -382,12 +382,12 @@ async def leer_archivo(project_id: int, path: str = Query(...), force: bool = Qu
     _guard_servible(full)
 
     if not os.path.isfile(full):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+        raise HTTPException(status_code=404, detail="File not found")
 
     try:
         size = os.path.getsize(full)
     except OSError:
-        raise HTTPException(status_code=500, detail="No se pudo leer el archivo")
+        raise HTTPException(status_code=500, detail="Could not read the file")
 
     # Detectar imagen (por extensión) o binario (NUL en los primeros 1024 bytes).
     # Estos no se mandan a Monaco: el front usa /files/raw para previsualizar.
@@ -402,7 +402,7 @@ async def leer_archivo(project_id: int, path: str = Query(...), force: bool = Qu
         except Exception as e:
             # No filtrar el mensaje crudo al cliente: log server-side, detail genérico.
             print(f'[files] Error sondeando binario {full}: {e}')
-            raise HTTPException(status_code=500, detail="No se pudo leer el archivo")
+            raise HTTPException(status_code=500, detail="Could not read the file")
 
     if es_imagen or es_binario:
         return {
@@ -414,14 +414,14 @@ async def leer_archivo(project_id: int, path: str = Query(...), force: bool = Qu
 
     limite = HARD_MAX_FILE_SIZE if force else MAX_FILE_SIZE
     if size > limite:
-        raise HTTPException(status_code=413, detail=f"Archivo demasiado grande (>{limite // 1024} KB)")
+        raise HTTPException(status_code=413, detail=f"File too large (>{limite // 1024} KB)")
 
     try:
         content = await asyncio.to_thread(_leer_texto, full)   # IO fuera del loop
     except Exception as e:
         # No filtrar el mensaje crudo al cliente: log server-side, detail genérico.
         print(f'[files] Error leyendo {full}: {e}')
-        raise HTTPException(status_code=500, detail="No se pudo leer el archivo")
+        raise HTTPException(status_code=500, detail="Could not read the file")
 
     return {
         'path':     path,
@@ -440,7 +440,7 @@ async def archivo_crudo(project_id: int, path: str = Query(...)):
     _guard_servible(full)
 
     if not os.path.isfile(full):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+        raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(full)
 
@@ -454,12 +454,12 @@ async def stat_archivo(project_id: int, path: str = Query(...)):
     _guard_servible(full)
 
     if not os.path.isfile(full):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+        raise HTTPException(status_code=404, detail="File not found")
 
     try:
         st = os.stat(full)
     except OSError:
-        raise HTTPException(status_code=500, detail="No se pudo statear el archivo")
+        raise HTTPException(status_code=500, detail="Could not stat the file")
 
     return {
         'path':  path,
@@ -488,7 +488,7 @@ async def guardar_archivo(project_id: int, datos: FileSaveRequest):
         # No filtrar el mensaje crudo (rutas absolutas, errno) al cliente: log
         # server-side, detail genérico.
         print(f'[files] Error guardando {full}: {e}')
-        raise HTTPException(status_code=500, detail="No se pudo guardar el archivo")
+        raise HTTPException(status_code=500, detail="Could not save the file")
     if era_nuevo:
         _marcar_creado(project_id, datos.path)   # creado desde la UI → borrable en el editor aun en Jarvis
 
@@ -516,7 +516,7 @@ async def subir_archivos(
     project_id: int,
     files: List[UploadFile] = File(...),
     rel_paths: List[str] = Form([]),
-    target_dir: str = Query("", description="Subcarpeta relativa (vacío = raíz del proyecto)"),
+    target_dir: str = Query("", description="Relative subfolder (empty = project root)"),
 ):
     """Sube uno o más archivos al proyecto. Acepta multipart/form-data.
     rel_paths[i] (si viene y es truthy) preserva la estructura relativa del archivo i;
@@ -528,7 +528,7 @@ async def subir_archivos(
         try:
             os.makedirs(full_target, exist_ok=True)
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"No pude crear la carpeta destino: {e}")
+            raise HTTPException(status_code=400, detail=f"Could not create the destination folder: {e}")
 
     if len(files) > MAX_UPLOAD_FILES:
         raise HTTPException(status_code=413,
@@ -547,19 +547,19 @@ async def subir_archivos(
         # Rechazar cualquier segmento en IGNORE_DIRS (no subir .git/node_modules/venv…)
         segmentos = [s for s in rel.split('/') if s and s != '.']
         if any(s in IGNORE_DIRS for s in segmentos):
-            rechazados.append({'archivo': rel, 'motivo': 'carpeta ignorada'})
+            rechazados.append({'archivo': rel, 'motivo': 'folder ignored'})
             continue
 
         nombre = segmentos[-1] if segmentos else basename
         # Bloquear sensibles (por nombre de archivo final)
         if nombre in HIDDEN_FILES or nombre.startswith('.env'):
-            rechazados.append({'archivo': rel, 'motivo': 'archivo sensible'})
+            rechazados.append({'archivo': rel, 'motivo': 'sensitive file'})
             continue
 
         try:
             contenido = await f.read()
         except Exception as e:
-            rechazados.append({'archivo': rel, 'motivo': f'no se pudo leer: {e}'})
+            rechazados.append({'archivo': rel, 'motivo': f'could not read: {e}'})
             continue
 
         if len(contenido) > MAX_UPLOAD_SIZE:
@@ -576,7 +576,7 @@ async def subir_archivos(
         try:
             dest = _safe_join(full_target, rel)   # anti-traversal
         except HTTPException:
-            rechazados.append({'archivo': rel, 'motivo': 'ruta inválida'})
+            rechazados.append({'archivo': rel, 'motivo': 'invalid path'})
             continue
         if not _es_servible(dest):   # no escribir dentro de data/ ni sobre .env (realpath)
             rechazados.append({'archivo': rel, 'motivo': 'destino protegido'})
@@ -590,7 +590,7 @@ async def subir_archivos(
             subidos.append(rel_final)
             _marcar_creado(project_id, rel_final)   # subido desde la UI → borrable en el editor (aun en Jarvis)
         except Exception as e:
-            rechazados.append({'archivo': rel, 'motivo': f'no se pudo escribir: {e}'})
+            rechazados.append({'archivo': rel, 'motivo': f'could not write: {e}'})
 
     return {'ok': True, 'subidos': subidos, 'rechazados': rechazados}
 
@@ -640,7 +640,7 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
     ESCRITOS (acumulados vs MAX_UNZIP_TOTAL y ratio vs MAX_ZIP_RATIO)."""
     comprimido = len(raw)
     if not zipfile.is_zipfile(io.BytesIO(raw)):
-        raise HTTPException(status_code=400, detail="El archivo no es un .zip válido")
+        raise HTTPException(status_code=400, detail="The file is not a valid .zip")
 
     subidos = []
     rechazados = []
@@ -673,7 +673,7 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
                     # Rechazo EXPLÍCITO: un '..' podría colapsar dentro de la
                     # carpeta envoltorio y escaparse de ella (aunque _safe_join
                     # igual frene cualquier escape del proyecto).
-                    rechazados.append({'archivo': rel, 'motivo': 'ruta inválida'})
+                    rechazados.append({'archivo': rel, 'motivo': 'invalid path'})
                     continue
                 if raiz_es_stem:
                     segmentos = segmentos[1:]   # la raíz del zip ES la carpeta
@@ -682,18 +682,18 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
                     continue                    # quedó solo la carpeta, sin archivo
                 rel = '/'.join(segmentos)
                 if any(s in IGNORE_DIRS for s in segmentos):
-                    rechazados.append({'archivo': rel, 'motivo': 'carpeta ignorada'})
+                    rechazados.append({'archivo': rel, 'motivo': 'folder ignored'})
                     continue
 
                 final = segmentos[-1]
                 if final in HIDDEN_FILES or final.startswith('.env'):
-                    rechazados.append({'archivo': rel, 'motivo': 'archivo sensible'})
+                    rechazados.append({'archivo': rel, 'motivo': 'sensitive file'})
                     continue
 
                 try:
                     dest = _safe_join(full_target, rel)   # anti zip-slip
                 except HTTPException:
-                    rechazados.append({'archivo': rel, 'motivo': 'ruta inválida'})
+                    rechazados.append({'archivo': rel, 'motivo': 'invalid path'})
                     continue
                 if not _es_servible(dest):   # no extraer dentro de data/ ni sobre .env
                     rechazados.append({'archivo': rel, 'motivo': 'destino protegido'})
@@ -704,7 +704,7 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
                 try:
                     info = z.getinfo(nombre)
                 except KeyError as e:
-                    rechazados.append({'archivo': rel, 'motivo': f'no se pudo leer del zip: {e}'})
+                    rechazados.append({'archivo': rel, 'motivo': f'could not read from the zip: {e}'})
                     continue
                 if info.file_size > MAX_UPLOAD_SIZE:
                     rechazados.append({'archivo': rel,
@@ -729,7 +729,7 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
                             leidos += len(chunk)
                     data = b''.join(partes)
                 except Exception as e:
-                    rechazados.append({'archivo': rel, 'motivo': f'no se pudo leer del zip: {e}'})
+                    rechazados.append({'archivo': rel, 'motivo': f'could not read from zip: {e}'})
                     continue
 
                 if len(data) > MAX_UPLOAD_SIZE:
@@ -745,7 +745,7 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
                 # Anti zip-bomb por ratio: bytes ESCRITOS / bytes comprimidos
                 if comprimido > 0 and total_escrito / comprimido > MAX_ZIP_RATIO:
                     rechazados.append({'archivo': rel,
-                                       'motivo': f'ratio de descompresión excesivo (>{MAX_ZIP_RATIO}x)'})
+                                       'motivo': f'decompression ratio too high (>{MAX_ZIP_RATIO}x)'})
                     break
 
                 try:
@@ -756,9 +756,9 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
                     subidos.append(rel_final)
                     _marcar_creado(project_id, rel_final)   # extraído desde la UI → borrable en el editor
                 except Exception as e:
-                    rechazados.append({'archivo': rel, 'motivo': f'no se pudo escribir: {e}'})
+                    rechazados.append({'archivo': rel, 'motivo': f'could not write: {e}'})
     except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="El archivo no es un .zip válido")
+        raise HTTPException(status_code=400, detail="The file is not a valid .zip")
 
     return {'subidos': subidos, 'rechazados': rechazados, 'carpeta': carpeta}
 
@@ -767,7 +767,7 @@ def _extraer_zip_bytes(project_id: int, base: str, full_target: str,
 async def subir_zip(
     project_id: int,
     file: UploadFile = File(...),
-    target_dir: str = Query("", description="Subcarpeta relativa (vacío = raíz del proyecto)"),
+    target_dir: str = Query("", description="Relative subfolder (empty = project root)"),
 ):
     """Sube un .zip y lo extrae EN MODO CARPETA: siempre queda una carpeta
     fresca <nombre-del-zip>/ (sufijo -2/-3 si ya existe) con el contenido
@@ -799,12 +799,12 @@ async def extraer_zip(project_id: int, datos: ExtractZipRequest):
     base = _get_project_path(project_id)
     rel = (datos.path or '').strip()
     if not rel:
-        raise HTTPException(status_code=400, detail="Ruta vacía")
+        raise HTTPException(status_code=400, detail="Empty path")
 
     full = _safe_join(base, rel)
     _guard_servible(full)
     if not os.path.isfile(full):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+        raise HTTPException(status_code=404, detail="File not found")
 
     raw = await asyncio.to_thread(lambda: open(full, 'rb').read())
     full_target = os.path.dirname(full)   # extraer al lado del zip
@@ -826,7 +826,7 @@ async def crear_directorio(project_id: int, datos: MkdirRequest):
     base = _get_project_path(project_id)
     rel = (datos.path or '').strip()
     if not rel:
-        raise HTTPException(status_code=400, detail="Ruta vacía")
+        raise HTTPException(status_code=400, detail="Empty path")
 
     full = _safe_join(base, rel)
     _guard_servible(full)   # nombre + realpath (no crear dentro de data/ ni .env)
@@ -839,7 +839,7 @@ async def crear_directorio(project_id: int, datos: MkdirRequest):
     except FileExistsError:
         raise HTTPException(status_code=409, detail="Ya existe")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creando carpeta: {e}")
+        raise HTTPException(status_code=500, detail=f"Error creating folder: {e}")
 
     _marcar_creado(project_id, rel)   # creada desde la UI → borrable en el editor aun en Jarvis
     return {'ok': True, 'path': rel}
@@ -871,9 +871,9 @@ async def renombrar_ruta(project_id: int, datos: RenameRequest):
     _guard_servible(dst_full)
 
     if not os.path.exists(src_full):
-        raise HTTPException(status_code=404, detail="Origen no encontrado")
+        raise HTTPException(status_code=404, detail="Origin not found")
     if os.path.exists(dst_full):
-        raise HTTPException(status_code=409, detail="El destino ya existe")
+        raise HTTPException(status_code=409, detail="Destination already exists")
 
     try:
         os.makedirs(os.path.dirname(dst_full), exist_ok=True)
@@ -907,39 +907,39 @@ async def borrar_directorio(project_id: int, path: str = Query("")):
 
     # Rechazar raíz (vacío, ".", "/")
     if not rel or rel in ('.', '/', './'):
-        raise HTTPException(status_code=400, detail="No se puede borrar la raíz del proyecto")
+        raise HTTPException(status_code=400, detail="Cannot delete the project root")
 
     full = _safe_join(base, rel)
 
     # Defensa extra: el resultado no puede ser la propia base
     if os.path.normpath(full) == os.path.normpath(base):
-        raise HTTPException(status_code=400, detail="No se puede borrar la raíz del proyecto")
+        raise HTTPException(status_code=400, detail="Cannot delete the project root")
 
     # Blindaje anti auto-destrucción: en el árbol del propio Jarvis SOLO se borra lo
     # que se creó desde el creador del editor; el resto (archivos reales) queda intocable.
     from plotspace.routers.projects import _es_ruta_protegida
     if _es_ruta_protegida(full) and not _fue_creado_ui(project_id, rel):
-        raise HTTPException(status_code=403, detail="Protegido: solo se pueden borrar archivos creados desde el editor")
+        raise HTTPException(status_code=403, detail="Protected: only files created from the editor can be deleted")
 
     nombre = os.path.basename(full)
     if nombre in IGNORE_DIRS:
-        raise HTTPException(status_code=403, detail="No se puede borrar esta carpeta")
+        raise HTTPException(status_code=403, detail="This folder cannot be deleted")
     _guard_servible(full)   # nombre + realpath (no borrar data/ ni plotspace/.env)
 
     if not os.path.exists(full):
-        raise HTTPException(status_code=404, detail="Carpeta no encontrada")
+        raise HTTPException(status_code=404, detail="Folder not found")
     if not os.path.isdir(full):
-        raise HTTPException(status_code=400, detail="No es una carpeta. Usá el borrado de archivo.")
+        raise HTTPException(status_code=400, detail="Not a folder. Use file deletion.")
 
     if _arbol_tiene_sensibles(full):
-        raise HTTPException(status_code=403, detail="La carpeta contiene archivos protegidos; borralos manualmente")
+        raise HTTPException(status_code=403, detail="The folder contains protected files; delete them manually")
 
     try:
         # En un thread: rmtree de node_modules/ puede tardar 10-60s y clavaba
         # el event loop entero (todas las terminales + pollers congelados).
         await asyncio.to_thread(shutil.rmtree, full)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error borrando carpeta: {e}")
+        raise HTTPException(status_code=500, detail=f"Error deleting folder: {e}")
 
     return {'ok': True, 'path': rel}
 
@@ -956,13 +956,13 @@ async def borrar_archivo(project_id: int, path: str = Query(...)):
     # Blindaje anti auto-destrucción: en Jarvis SOLO se borra lo creado desde el editor.
     from plotspace.routers.projects import _es_ruta_protegida
     if _es_ruta_protegida(full) and not _fue_creado_ui(project_id, path):
-        raise HTTPException(status_code=403, detail="Protegido: solo se pueden borrar archivos creados desde el editor")
+        raise HTTPException(status_code=403, detail="Protected: only files created from the editor can be deleted")
 
     if not os.path.exists(full):
-        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+        raise HTTPException(status_code=404, detail="File not found")
 
     if os.path.isdir(full):
-        raise HTTPException(status_code=400, detail="Es una carpeta, no un archivo. Usá el shell.")
+        raise HTTPException(status_code=400, detail="It is a folder, not a file. Use the shell.")
 
     try:
         os.remove(full)
@@ -1163,7 +1163,7 @@ def _buscar(base: str, q: str, case_sensitive: bool, regex: bool, whole_word: bo
         patron = re.compile(cuerpo, flags)
     except re.error as e:
         return {'query': q, 'results': [], 'total': 0,
-                'truncated': False, 'error': f'regex inválida: {e}'}
+                'truncated': False, 'error': f'invalid regex: {e}'}
 
     if shutil.which('rg'):
         try:
@@ -1176,14 +1176,14 @@ def _buscar(base: str, q: str, case_sensitive: bool, regex: bool, whole_word: bo
     # inmune; si no está, rechazamos la búsqueda con regex (anti-ReDoS, auditoría).
     if regex:
         return {'query': q, 'results': [], 'total': 0, 'truncated': False,
-                'error': 'La búsqueda con expresiones regulares requiere ripgrep (rg) instalado'}
+                'error': 'Regex search requires ripgrep (rg) to be installed'}
     return _buscar_python(base, patron, q)
 
 
 @router.get("/{project_id}/files/search")
 async def buscar_contenido(
     project_id: int,
-    q: str = Query(..., description="Texto o patrón a buscar"),
+    q: str = Query(..., description="Text or pattern to search"),
     case_sensitive: bool = Query(False),
     regex: bool = Query(False),
     whole_word: bool = Query(False),

@@ -31,7 +31,7 @@ async def ws_browser(websocket: WebSocket, sid: str):
             int(ancho) if ancho and ancho.isdigit() else 1280,
             int(alto) if alto and alto.isdigit() else 800)
     except Exception as e:
-        await websocket.send_json({'t': 'err', 'msg': f'no se pudo abrir el browser: {e}'})
+        await websocket.send_json({'t': 'err', 'msg': f'could not open the browser: {e}'})
         await websocket.close()
         return
 

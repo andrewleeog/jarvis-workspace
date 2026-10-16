@@ -293,5 +293,5 @@ def test_revert_sin_copia_no_descarta(monkeypatch):
     monkeypatch.setattr(wip_snapshots, 'snapshot_wip', lambda repo, **k: wip_snapshots._fallar('disco lleno'))
     r = client.post(f"/api/projects/{pid}/review/revert", json={'archivos': ['a.txt']})
     data = r.json()
-    assert data['ok'] is False and 'copia' in data['error'].lower(), data
+    assert data['ok'] is False and 'backup' in data['error'].lower(), data
     assert _leer(d, 'a.txt') == 'uno cambiado\n'

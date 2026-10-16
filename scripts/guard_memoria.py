@@ -75,11 +75,11 @@ def validar(slug, src, es_nueva):
         # toward --no-verify. Long legacy files are flagged by the lint.
         lineas = len([l for l in cuerpo.splitlines() if l.strip()])
         if lineas > _MAX_LINEAS:
-            v.append(f"cuerpo de {lineas} líneas (máx {_MAX_LINEAS}) — eso es un informe: "
-                     "destilá el hecho y punto")
+            v.append(f"body of {lineas} lines (max {_MAX_LINEAS}) — that is a report: "
+                     "distill the fact and nothing else")
         if _FECHA_RE.search(slug) or _FECHA_RE.search(_campo(front, 'titulo')):
-            v.append("fecha embebida en el slug/título — una memoria no es bitácora: "
-                     "la fecha va en `creado:`/`actualizado:`")
+            v.append("date embedded in the slug/title — a memory is not a log entry: "
+                     "the date goes in `creado:`/`actualizado:`")
         if not _campo(front, 'resumen'):
             v.append("missing `resumen:` (one line with the fact — it's what recall "
                      "injects into the other agents' prompt)")

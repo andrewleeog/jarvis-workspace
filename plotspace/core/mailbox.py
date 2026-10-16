@@ -115,7 +115,7 @@ def archivar_mailbox(archivo: str, max_lineas: int = 120, conservar: int = 40,
         existe = os.path.exists(destino)
         with open(destino, 'a', encoding='utf-8') as f:
             if not existe:
-                f.write('# Mailbox — archivo histórico (lo mueve el janitor)\n')
+                f.write('# Mailbox — historical archive (moved by the janitor)\n')
             f.write('\n'.join(viejas) + '\n')
         with open(archivo, 'w', encoding='utf-8') as f:
             f.write('\n'.join(cabecera + vivas) + '\n')
@@ -151,8 +151,8 @@ def asegurar_mailbox(project_path: str):
     if not os.path.exists(archivo):
         os.makedirs(os.path.dirname(archivo), exist_ok=True)
         with open(archivo, 'w', encoding='utf-8') as f:
-            f.write('# Mailbox del workspace\n'
-                    '<!-- - @De -> @Para: mensaje  ·  canal por archivo: leé .jarvis/MAILBOX.md -->\n')
+            f.write('# Workspace mailbox\n'
+                    '<!-- - @From -> @To: message  ·  file-based channel: read .jarvis/MAILBOX.md -->\n')
 
     # Estado efímero del mailbox v2 → .gitignore (no se versiona)
     try:
@@ -316,14 +316,14 @@ def armar_digest(msgs: list) -> str:
     if not msgs:
         return ''
     msgs = _ordenar_mensajes(msgs)
-    lineas = [f"📬 Mailbox — {len(msgs)} mensaje{'s' if len(msgs) != 1 else ''} "
-              "mientras trabajabas:"]
+    lineas = [f"📬 Mailbox — {len(msgs)} message{'s' if len(msgs) != 1 else ''} "
+              "while you were working:"]
     for m in msgs[:6]:
         tope = 1500 if _es_handoff(m['msg']) else 300
         lineas.append(f"  - de {m['de']}: {m['msg'][:tope]}")
     if len(msgs) > 6:
-        lineas.append(f"  (+{len(msgs) - 6} más en .jarvis/MAILBOX.md)")
-    lineas.append("Respondé por .jarvis/MAILBOX.md si hace falta y seguí con lo tuyo.")
+        lineas.append(f"  (+{len(msgs) - 6} more in .jarvis/MAILBOX.md)")
+    lineas.append("Reply via .jarvis/MAILBOX.md if needed and continue with your work.")
     return '\n'.join(lineas)
 
 
@@ -374,7 +374,7 @@ async def _entregar(project_id: int, de: str, para: str, msg: str):
             msg.strip(), destinos[0]['id'] if len(destinos) == 1 else None,
             clase_de_mensaje(msg))
     except Exception as e:
-        print(f'[mailbox] no pude persistir el mensaje: {e}')
+        print(f"[mailbox] couldn't persist the message: {e}")
 
     # Inyección en terminal gateada (ver _ENTREGAR_EN_TERMINAL): por defecto NO se
     # tipea el mensaje en la terminal del destinatario — antes interrumpía al agente.
@@ -383,7 +383,7 @@ async def _entregar(project_id: int, de: str, para: str, msg: str):
             try:
                 await send_to_agent(
                     t['id'],
-                    f"📬 Mensaje de {de.strip()} (mailbox): {msg.strip()}",
+                    f"📬 Message from {de.strip()} (mailbox): {msg.strip()}",
                 )
             except Exception as e:
                 print(f'[mailbox] No pude entregar a terminal {t["id"]}: {e}')
@@ -487,7 +487,7 @@ async def _entregar_pendientes_idle(project_id: int, project_ruta: str = None):
             await asyncio.to_thread(marcar_mensajes_entregados,
                                     [m['id'] for m in despiertan])
             entregados = True
-            print(f'[mailbox] digest de {len(despiertan)} mensaje(s) entregado a terminal {tid} (idle)')
+            print(f'[mailbox] digest of {len(despiertan)} message(s) delivered to terminal {tid} (idle)')
         except Exception as e:
             print(f'[mailbox] no pude entregar el digest a terminal {tid}: {e}')
     if entregados and project_ruta:

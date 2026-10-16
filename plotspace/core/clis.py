@@ -164,12 +164,12 @@ def instalar(cli_id: str, correr=None) -> Dict:
     """
     cmd = comando_instalar(cli_id)
     if not cmd:
-        return {'ok': False, 'salida': 'ese agente no se instala desde acá'}
+        return {'ok': False, 'salida': 'that agent is not installed from here'}
     try:
         correr = correr or subprocess.run
         r = correr(cmd, capture_output=True, text=True, timeout=600)
     except subprocess.TimeoutExpired:
-        return {'ok': False, 'salida': 'la instalación tardó demasiado (10 min) y se cortó'}
+        return {'ok': False, 'salida': 'installation timed out (10 min) and was aborted'}
     except Exception as e:
         return {'ok': False, 'salida': str(e)}
     ok = getattr(r, 'returncode', 1) == 0

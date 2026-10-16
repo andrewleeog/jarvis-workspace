@@ -81,12 +81,12 @@ async def crear(body: CrearCuenta):
     try:
         perfil = ca.capturar_actual(body.tipo, body.label)
     except ca.TipoDesconocido:
-        raise HTTPException(status_code=400, detail="Tipo de CLI desconocido")
+        raise HTTPException(status_code=400, detail="Unknown CLI type")
     except ca.NoLogueado:
         raise HTTPException(
             status_code=409,
-            detail="No hay una cuenta logueada para capturar. Logueate primero "
-                   "en una terminal de ese CLI.",
+            detail="No logged-in account to capture. Log in first in a "
+                   "terminal of that CLI.",
         )
     await _avisar()
     return perfil
@@ -111,7 +111,7 @@ async def recapturar(account_id: int):
     except ca.NoLogueado:
         raise HTTPException(
             status_code=409,
-            detail="No hay una cuenta logueada en el HOME para re-capturar.",
+            detail="No account logged in on the HOME to re-capture.",
         )
     await _avisar()
     return perfil
@@ -148,7 +148,7 @@ async def eliminar(account_id: int):
 async def iniciar_login(body: IniciarLogin):
     tipo = body.tipo
     if tipo not in ca.TIPOS:
-        raise HTTPException(status_code=400, detail="Tipo de CLI desconocido")
+        raise HTTPException(status_code=400, detail="Unknown CLI type")
     if tipo not in cli_login.LOGIN_ARGV and tipo not in cli_login.LOGIN_MANUAL:
         raise HTTPException(status_code=400, detail="Ese CLI no tiene login web")
     # cancelar un watcher previo del mismo tipo (re-disparo limpio)
@@ -178,7 +178,7 @@ async def iniciar_login(body: IniciarLogin):
     url, paste, codigo = await cli_login.iniciar(tipo)
     if not url:
         raise HTTPException(status_code=502,
-                            detail="No se pudo obtener la página de login del CLI")
+                            detail="Could not get the CLI login page")
     _watchers[tipo] = asyncio.create_task(
         _watch_y_emitir(tipo, conocidos, email_previo, huella_previa, body.label))
     return {"ok": True, "tipo": tipo, "url": url, "paste": paste, "codigo": codigo,
@@ -206,7 +206,7 @@ async def login_codigo(body: CodigoLogin):
     curso. Lo usan los CLIs de flujo "pegar código" (Claude)."""
     ok = await cli_login.enviar_codigo(body.tipo, body.codigo)
     if not ok:
-        raise HTTPException(status_code=409, detail="No hay un login en curso para ese CLI")
+        raise HTTPException(status_code=409, detail="No login in progress for that CLI")
     return {"ok": True}
 
 

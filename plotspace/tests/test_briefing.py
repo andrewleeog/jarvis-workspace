@@ -64,7 +64,7 @@ def test_nombra_a_los_pares_vivos_con_su_estado():
         {'nombre': 'Claude Code #1', 'tipo_ia': 'claude', 'estado': 'trabajando'},
         {'nombre': 'Codex #2', 'tipo_ia': 'codex', 'estado': 'idle'}]))
     assert 'Claude Code #1' in txt and 'Codex #2' in txt
-    assert 'trabajando' in txt
+    assert 'working' in txt
 
 
 def test_un_par_caido_se_marca_como_caido_no_como_idle():
@@ -72,7 +72,7 @@ def test_un_par_caido_se_marca_como_caido_no_como_idle():
     el territorio y le espere los commits para siempre."""
     txt = briefing.armar_briefing(_estado(pares=[
         {'nombre': 'Claude Code #1', 'tipo_ia': 'claude', 'estado': 'caido'}]))
-    assert 'caído' in txt.lower()
+    assert 'down' in txt.lower()
     assert 'idle' not in txt.lower()
 
 
@@ -120,7 +120,7 @@ def test_el_briefing_se_mantiene_corto_aun_con_un_enjambre_grande():
 def test_marcadores_para_que_el_agente_sepa_que_es_contexto_de_jarvis():
     txt = briefing.armar_briefing(_estado(pares=[
         {'nombre': 'X', 'tipo_ia': 'claude', 'estado': 'idle'}]))
-    assert txt.startswith('[Enjambre]')
+    assert txt.startswith('[Swarm]')
 
 
 # ─── Firma: evitar repetir lo idéntico en el canal de piggyback ───────────────

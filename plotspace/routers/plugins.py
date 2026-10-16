@@ -216,7 +216,7 @@ async def toggle_plugin(project_id: int, req: PluginToggleRequest):
     # Sólo permitir toggle de plugins efectivamente instalados
     instalados = _leer_installed_plugins().get('plugins') or {}
     if full_id not in instalados:
-        raise HTTPException(status_code=404, detail=f"Plugin no instalado: {full_id}")
+        raise HTTPException(status_code=404, detail=f"Plugin not installed: {full_id}")
 
     plugin_id_corto = full_id.split('@')[0]
     marketplace     = full_id.split('@')[1] if '@' in full_id else ''
@@ -234,7 +234,7 @@ async def toggle_plugin(project_id: int, req: PluginToggleRequest):
         cursor = conn.cursor()
         cursor.execute('SELECT id FROM projects WHERE id = ?', (project_id,))
         if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         # UPSERT atómico — requiere el UNIQUE INDEX idx_project_skills_unique
         # creado en database.py init_db()
@@ -280,12 +280,12 @@ def _project_path(project_id: int) -> str:
         cursor.execute('SELECT ruta FROM projects WHERE id = ?', (project_id,))
         row = cursor.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
         ruta = row['ruta']
     finally:
         conn.close()
     if not os.path.isdir(ruta):
-        raise HTTPException(status_code=404, detail="La ruta del proyecto no existe en disco")
+        raise HTTPException(status_code=404, detail="Project path does not exist on disk")
     return ruta
 
 
@@ -369,9 +369,9 @@ async def guardar_skill_md(project_id: int, datos: SkillMdSave):
     ruta = _project_path(project_id)
     nombre = datos.nombre.strip().replace('..', '').replace('/', '_')
     if not nombre:
-        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
     if not re.match(r'^[a-zA-Z0-9_-]+$', nombre):
-        raise HTTPException(status_code=400, detail="Solo letras, números, guiones y underscores")
+        raise HTTPException(status_code=400, detail="Only letters, numbers, dashes and underscores")
 
     skills_dir = _skills_md_dir(ruta)
     os.makedirs(skills_dir, exist_ok=True)

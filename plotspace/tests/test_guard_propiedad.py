@@ -25,20 +25,20 @@ sys.path.insert(0, os.path.join(
 import guard_propiedad as g
 
 
-LIVE = """# LIVE — qué está haciendo cada agente (auto-generado, NO editar)
-Actualizado: 2026-06-16 10:57:05
+LIVE = """# LIVE — what each agent is doing (auto-generated, do NOT edit)
+Updated: 2026-06-16 10:57:05
 
-## Backend (claude, terminal 100) — 🟢 trabajando
-- `plotspace/routers/tasks.py` — write ×3 (hace 1m) 🔒 dueño
-- `plotspace/core/database.py` — write ×1 (hace 2m) 🔒 dueño
+## Backend (claude, terminal 100) — 🟢 working
+- `plotspace/routers/tasks.py` — write ×3 (1m ago) 🔒 owner
+- `plotspace/core/database.py` — write ×1 (2m ago) 🔒 owner
 
 ## Claude Code #2 (claude, terminal 200) — ⚪ idle
-- `frontend/shell/workspace.js` — write ×2 (hace 5m) 🔒 dueño
-- `frontend/shell/workspace.html` — write ×1 (hace 30m)
+- `frontend/shell/workspace.js` — write ×2 (5m ago) 🔒 owner
+- `frontend/shell/workspace.html` — write ×1 (30m ago)
 
-## Permisos
-- ✅ Claude Code #2 pidió PERMISO sobre `plotspace/core/database.py` (dueño: Backend) — hace 1m → OK: tocá solo las tablas
-- ⛔ Claude Code #2 pidió PERMISO sobre `plotspace/routers/tasks.py` (dueño: Backend) — hace 2m → NO: lo estoy editando
+## Permissions
+- ✅ Claude Code #2 requested PERMISSION over `plotspace/core/database.py` (owner: Backend) — 1m ago → OK: touch only the tables
+- ⛔ Claude Code #2 requested PERMISSION over `plotspace/routers/tasks.py` (owner: Backend) — 2m ago → NO: I am editing it
 """
 
 
@@ -132,7 +132,7 @@ def test_match_archivo():
 
 def test_permiso_ok_por_basename_exime():
     # el dueño respondió con el basename: 'database.py' debe matchear el path full
-    live = LIVE.replace('sobre `plotspace/core/database.py`', 'sobre `database.py`')
+    live = LIVE.replace('over `plotspace/core/database.py`', 'over `database.py`')
     agentes, permisos = g.parsear_live(live)
     assert g.violaciones(['plotspace/core/database.py'], 200, agentes, permisos) == []
 
@@ -178,8 +178,8 @@ def test_main_permite_sin_live_md(monkeypatch, tmp_path):
 # ─── v2: reservas + bypass scoped GUARD_OK ───────────────────────────────────
 
 LIVE_RESERVAS = LIVE + """
-## Reservas
-- 🔖 `frontend/nuevo.js` — Backend (hace 2m)
+## Reservations
+- 🔖 `frontend/nuevo.js` — Backend (2m ago)
 """
 
 
@@ -188,17 +188,17 @@ LIVE_RESERVAS = LIVE + """
 # LIVE.md lo seguía mostrando idle con sus 🔒, y el guard le bloqueaba el commit
 # a todos los demás en nombre de alguien que ya no iba a commitear nunca.
 
-LIVE_CON_MUERTO = """# LIVE — qué está haciendo cada agente (auto-generado, NO editar)
-Actualizado: 2026-07-25 10:57:05
+LIVE_CON_MUERTO = """# LIVE — what each agent is doing (auto-generated, do NOT edit)
+Updated: 2026-07-25 10:57:05
 
-## Backend (claude, terminal 100) — 💀 caído (su CLI se cerró)
-- `plotspace/routers/tasks.py` — write ×3 (hace 1m) 🔒 dueño
+## Backend (claude, terminal 100) — 💀 down (its CLI exited)
+- `plotspace/routers/tasks.py` — write ×3 (1m ago) 🔒 owner
 
-## Fantasma (claude, terminal 300) — 💀 caído (sin sesión tmux)
-- `plotspace/core/x.py` — write ×1 (hace 4m) 🔒 dueño
+## Fantasma (claude, terminal 300) — 💀 down (no tmux session)
+- `plotspace/core/x.py` — write ×1 (4m ago) 🔒 owner
 
-## Vivo (claude, terminal 200) — 🟢 trabajando
-- `frontend/shell/workspace.js` — write ×2 (hace 5m) 🔒 dueño
+## Vivo (claude, terminal 200) — 🟢 working
+- `frontend/shell/workspace.js` — write ×2 (5m ago) 🔒 owner
 """
 
 

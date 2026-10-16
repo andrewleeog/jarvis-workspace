@@ -219,7 +219,7 @@ def test_estado_git_detecta_commits(monkeypatch):
     ])
     hay, titulo, nov = system._estado_git()
     assert hay is True
-    assert titulo == 'Hay una nueva versión'              # texto simple, fijo
+    assert titulo == 'A new version is available'              # texto simple, fijo
     areas = {g['area']: g for g in nov}
     assert [g['area'] for g in nov] == ['Interfaz', 'Motor', 'Seguridad']   # orden fijo
     assert areas['Interfaz']['items'] == ['Botón ⚡ en la barra']           # prefijo limpio + capitalizado
@@ -357,13 +357,13 @@ def _client():
 
 def test_endpoint_hay_update(monkeypatch):
     monkeypatch.setattr(system, '_estado_git',
-                        lambda: (True, 'Hay una nueva versión', [{'area': 'Interfaz', 'icon': '🎨', 'items': ['a', 'b']}]))
+                        lambda: (True, 'A new version is available', [{'area': 'Interfaz', 'icon': '🎨', 'items': ['a', 'b']}]))
     client = _client()
     r = client.get('/api/system/version')
     assert r.status_code == 200, r.text
     d = r.json()
     assert d['hay_update'] is True
-    assert d['titulo'] == 'Hay una nueva versión'
+    assert d['titulo'] == 'A new version is available'
     assert d['novedades'][0]['area'] == 'Interfaz'
     assert d['novedades'][0]['items'] == ['a', 'b']
 
@@ -440,7 +440,7 @@ def test_reiniciar_servidor_difiere_el_reexec(monkeypatch):
 def test_endpoint_incluye_proxima(monkeypatch):
     # Con update pendiente, /version anuncia a qué versión se va a saltar
     # (el banner muestra "v1.5.0 → v1.5.1").
-    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'Hay una nueva versión', []))
+    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'A new version is available', []))
     monkeypatch.setattr(system, '_commits_con_archivos', lambda: [{'subject': 'feat: x', 'files': []}])
     monkeypatch.setattr(system, '_VERSION_BOOT', '1.5.0')
     client = _client()
@@ -451,7 +451,7 @@ def test_endpoint_incluye_proxima(monkeypatch):
 
 def test_endpoint_proxima_hotfix(monkeypatch):
     # Si TODO lo nuevo son fixes, la próxima es un hotfix: 4º segmento.
-    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'Hay una nueva versión', []))
+    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'A new version is available', []))
     monkeypatch.setattr(system, '_commits_con_archivos', lambda: [{'subject': 'fix: bug feo', 'files': []}])
     monkeypatch.setattr(system, '_VERSION_BOOT', '1.5.1')
     client = _client()
@@ -501,7 +501,7 @@ def test_endpoint_expone_agentes_trabajando(monkeypatch):
     # El endpoint sigue exponiendo agentes_trabajando como dato INFORMATIVO (¿hay
     # laburo en curso en Jarvis?). Ya NO gatea el banner: eso lo decide hay_update
     # = commit nuevo (ver _estado_git). El campo queda por si lo usa el modal.
-    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'Hay una nueva versión', []))
+    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'A new version is available', []))
     monkeypatch.setattr(system, '_agentes_trabajando', lambda: True)
     client = _client()
     d = client.get('/api/system/version').json()
@@ -510,7 +510,7 @@ def test_endpoint_expone_agentes_trabajando(monkeypatch):
 
 
 def test_endpoint_agentes_libres(monkeypatch):
-    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'Hay una nueva versión', []))
+    monkeypatch.setattr(system, '_estado_git', lambda: (True, 'A new version is available', []))
     monkeypatch.setattr(system, '_agentes_trabajando', lambda: False)
     client = _client()
     d = client.get('/api/system/version').json()
@@ -531,7 +531,7 @@ def test_endpoint_fallback_sin_git_tambien_expone_agentes(monkeypatch, tmp_path)
 # ─── Endpoint /restart: canary + bump de versión ─────────────────────────────
 
 def _preparar_restart(monkeypatch, tmp_path, canary=(True, ''),
-                      estado=(True, 'Hay una nueva versión', []), commits=()):
+                      estado=(True, 'A new version is available', []), commits=()):
     """Deja /restart inofensivo y observable: canary/git/VERSION mockeados."""
     llamado = {'reinicios': 0}
     vf = tmp_path / 'VERSION'

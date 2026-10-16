@@ -125,7 +125,7 @@ def purgar_logs_viejos(max_edad_dias: int = _LOG_MAX_EDAD_DIAS) -> dict:
         finally:
             conn.close()
     except Exception as e:
-        print(f'[mantenimiento] purga de logs: no pude leer DB: {e}')
+        print(f'[mantenimiento] log purge: could not read DB: {e}')
         return resumen
 
     ahora = time.time()
@@ -155,7 +155,7 @@ def purgar_logs_viejos(max_edad_dias: int = _LOG_MAX_EDAD_DIAS) -> dict:
                 resumen['logs_borrados'] += 1
                 resumen['bytes_liberados'] += sizes.get(path, 0)
             except OSError as e:
-                print(f'[mantenimiento] no pude borrar {path}: {e}')
+                print(f'[mantenimiento] could not delete {path}: {e}')
     return resumen
 
 
@@ -227,7 +227,7 @@ def respaldar_db(db_path: str = None, destino_dir: str = None,
             src.close()
         resumen['backup'] = destino
     except Exception as e:
-        print(f'[mantenimiento] backup de DB falló: {e}')
+        print(f'[mantenimiento] DB backup failed: {e}')
         return resumen
     resumen['purgados'] = _rotar_backups(destino_dir, max_copias)
     # Espejo: solo si su carpeta madre existe (D: montado). Un fallo acá NUNCA
@@ -240,7 +240,7 @@ def respaldar_db(db_path: str = None, destino_dir: str = None,
             resumen['espejo'] = espejo
             _rotar_backups(espejo_dir, max_copias)
         except Exception as e:
-            print(f'[mantenimiento] espejo de backup falló: {e}')
+            print(f'[mantenimiento] backup mirror failed: {e}')
     return resumen
 
 
@@ -329,7 +329,7 @@ def ronda_huerfanos() -> dict:
     try:
         procesos = _listar_procesos()
     except Exception as e:
-        print(f'[mantenimiento] janitor: ps falló: {e}')
+        print(f'[mantenimiento] janitor: ps failed: {e}')
         return resumen
     try:
         vivas = sorted(backend().listar_sesiones())
@@ -346,7 +346,7 @@ def ronda_huerfanos() -> dict:
             except (ProcessLookupError, PermissionError):
                 pass
     except Exception as e:
-        print(f'[mantenimiento] janitor de clientes tmux falló: {e}')
+        print(f'[mantenimiento] tmux clients janitor failed: {e}')
     try:
         resumen['huerfanos_pesados'] = [
             {'pid': p['pid'], 'cpu': p['cpu'], 'horas': p['etime_s'] // 3600,
@@ -354,7 +354,7 @@ def ronda_huerfanos() -> dict:
             for p in huerfanos_pesados(procesos)
         ]
     except Exception as e:
-        print(f'[mantenimiento] detección de huérfanos falló: {e}')
+        print(f'[mantenimiento] orphan detection failed: {e}')
     return resumen
 
 
@@ -391,15 +391,15 @@ def ejecutar_mantenimiento(keep_eventos: int = 5000) -> dict:
         finally:
             conn.close()
     except Exception as e:
-        print(f'[mantenimiento] paso DB falló: {e}')
+        print(f'[mantenimiento] DB step failed: {e}')
 
     # ── tmux: matar sesiones huérfanas (sin terminal en DB) ───────────────────
     # GUARD anti kill-all: con el paso DB fallido (o sin ids) la lista está
     # incompleta y TODAS las jarvis_* parecerían huérfanas → se saltea entero.
     if not db_ok or not ids_db:
         resumen['tmux_salteado'] = 'db_fallo' if not db_ok else 'db_sin_ids'
-        print(f"[mantenimiento] paso tmux SALTEADO ({resumen['tmux_salteado']}): "
-              "no se mata nada con la lista de terminales incompleta")
+        print(f"[mantenimiento] tmux step SKIPPED ({resumen['tmux_salteado']}): "
+              "nothing is killed with an incomplete terminal list")
     else:
         try:
             sesiones = sorted(backend().listar_sesiones())
@@ -407,19 +407,19 @@ def ejecutar_mantenimiento(keep_eventos: int = 5000) -> dict:
                 backend().matar_sesion_por_nombre(s)
                 resumen['tmux_huerfanas_matadas'] += 1
         except Exception as e:
-            print(f'[mantenimiento] paso tmux falló: {e}')
+            print(f'[mantenimiento] tmux step failed: {e}')
 
     # ── logs por-terminal: purga de viejos / de terminales inactivas ──────────
     try:
         resumen.update(purgar_logs_viejos())
     except Exception as e:
-        print(f'[mantenimiento] purga de logs falló: {e}')
+        print(f'[mantenimiento] log purge failed: {e}')
 
     # ── janitor de huérfanos: clientes attach muertos + detección de pesados ──
     try:
         resumen.update(ronda_huerfanos())
     except Exception as e:
-        print(f'[mantenimiento] janitor de huérfanos falló: {e}')
+        print(f'[mantenimiento] orphans janitor failed: {e}')
 
     # ── VACUUM: reclamar espacio tras las purgas ──────────────────────────────
     try:
@@ -430,7 +430,7 @@ def ejecutar_mantenimiento(keep_eventos: int = 5000) -> dict:
         finally:
             conn.close()
     except Exception as e:
-        print(f'[mantenimiento] VACUUM falló: {e}')
+        print(f'[mantenimiento] VACUUM failed: {e}')
 
     return resumen
 
@@ -451,7 +451,7 @@ def mantener_memorias() -> dict:
         finally:
             conn.close()
     except Exception as e:
-        print(f'[mantenimiento] memoria: no pude leer proyectos: {e}')
+        print(f'[mantenimiento] memory: could not read projects: {e}')
         return resumen
     # Lazy import (router → se evita el ciclo en el boot de core)
     from plotspace.routers.memory import _regenerar_index
@@ -467,22 +467,22 @@ def mantener_memorias() -> dict:
                 from plotspace.routers.memory import _slugs_usados
                 archivadas = auto_archivar(ruta, usados=_slugs_usados())
                 if archivadas:
-                    print(f'[mantenimiento] memoria: auto-archivadas en {ruta}: '
+                    print(f'[mantenimiento] memory: auto-archived in {ruta}: '
                           f'{archivadas}')
             except Exception as e:
-                print(f'[mantenimiento] memoria: auto-archivo de {ruta} falló: {e}')
+                print(f'[mantenimiento] memory: auto-archive of {ruta} failed: {e}')
         try:
             _regenerar_index(ruta)
             resumen['proyectos'] += 1
         except Exception as e:
-            print(f'[mantenimiento] memoria: INDEX de {ruta} falló: {e}')
+            print(f'[mantenimiento] memory: INDEX of {ruta} failed: {e}')
         # Bloque siempre-cargado de lecciones: se recompila acá (determinista
         # desde las memorias [leccion] + destilado si existe) para que refleje
         # lo que el enjambre escribió. Compare-before-write.
         try:
             inyectar_lecciones(ruta)
         except Exception as e:
-            print(f'[mantenimiento] memoria: lecciones de {ruta} fallaron: {e}')
+            print(f'[mantenimiento] memory: lessons of {ruta} failed: {e}')
         # MAILBOX largo → archivo histórico (solo si está QUIETO >1h: no pisar
         # un append en vuelo; el watcher re-baselinea al ver el archivo achicarse).
         try:
@@ -491,9 +491,9 @@ def mantener_memorias() -> dict:
             if os.path.exists(mb) and (time.time() - os.path.getmtime(mb)) > 3600:
                 n = archivar_mailbox(mb)
                 if n:
-                    print(f'[mantenimiento] mailbox: {n} líneas archivadas en {ruta}')
+                    print(f'[mantenimiento] mailbox: {n} lines archived in {ruta}')
         except Exception as e:
-            print(f'[mantenimiento] mailbox de {ruta} falló: {e}')
+            print(f'[mantenimiento] mailbox of {ruta} failed: {e}')
     return resumen
 
 
@@ -507,14 +507,14 @@ async def _pasada_wip():
         from plotspace.core.wip_snapshots import snapshots_todos
         rw = await asyncio.to_thread(snapshots_todos)
         if rw['fotos']:
-            print(f"[mantenimiento] wip: {rw['fotos']} snapshot(s) del árbol sucio")
+            print(f"[mantenimiento] wip: {rw['fotos']} snapshot(s) of the dirty tree")
         # Los fallos se dicen SIEMPRE: este paracaídas estuvo cinco días
         # muerto porque un 0 silencioso se leía igual que "no había nada".
         if rw.get('fallos'):
-            print(f"[mantenimiento] ⚠ wip: {rw['fallos']} snapshot(s) FALLARON — "
+            print(f"[mantenimiento] ⚠ wip: {rw['fallos']} snapshot(s) FAILED — "
                   + '; '.join(rw.get('motivos', [])[:3]))
     except Exception as e:
-        print(f'[mantenimiento] snapshots de WIP fallaron: {e}')
+        print(f'[mantenimiento] WIP snapshots failed: {e}')
 
 
 async def poller_purga_logs():
@@ -530,7 +530,7 @@ async def poller_purga_logs():
             print(f"[mantenimiento] backup de DB al boot: {r0['backup']}"
                   + (f" (+espejo {r0['espejo']})" if r0['espejo'] else ''))
     except Exception as e:
-        print(f'[mantenimiento] backup de DB al boot falló: {e}')
+        print(f'[mantenimiento] DB backup at boot failed: {e}')
     # Primera foto del WIP al minuto de arrancar, no a los 30: cada "Update now"
     # reinicia el proceso (y este reloj), así que con 30 min de espera la foto
     # casi nunca llegaba a salir durante una sesión de trabajo real.
@@ -541,34 +541,34 @@ async def poller_purga_logs():
         try:
             await asyncio.to_thread(respaldar_db)
         except Exception as e:
-            print(f'[mantenimiento] backup periódico de DB falló: {e}')
+            print(f'[mantenimiento] periodic DB backup failed: {e}')
         try:
             r = await asyncio.to_thread(purgar_logs_viejos)
             if r['logs_borrados']:
-                print(f"[mantenimiento] purga de logs: {r['logs_borrados']} archivos, "
-                      f"{r['bytes_liberados'] // (1024 * 1024)}MB liberados")
+                print(f"[mantenimiento] log purge: {r['logs_borrados']} files, "
+                      f"{r['bytes_liberados'] // (1024 * 1024)}MB freed")
         except Exception as e:
-            print(f'[mantenimiento] poller de purga de logs falló: {e}')
+            print(f'[mantenimiento] log purge poller failed: {e}')
         try:
             await asyncio.to_thread(mantener_memorias)
         except Exception as e:
-            print(f'[mantenimiento] janitor de memoria falló: {e}')
+            print(f'[mantenimiento] memory janitor failed: {e}')
         try:
             from plotspace.core.memoria_lecciones import tal_vez_destilar_todos
             await asyncio.to_thread(tal_vez_destilar_todos)
         except Exception as e:
-            print(f'[mantenimiento] destilador de lecciones falló: {e}')
+            print(f'[mantenimiento] lesson distiller failed: {e}')
         try:
             from plotspace.core.memoria_endurecimiento import pasada_janitor
             await asyncio.to_thread(pasada_janitor)
         except Exception as e:
-            print(f'[mantenimiento] escalera de endurecimiento falló: {e}')
+            print(f'[mantenimiento] hardening ladder failed: {e}')
         await _pasada_wip()
         try:
             r2 = await asyncio.to_thread(ronda_huerfanos)
             if r2['clientes_attach_matados']:
                 print(f"[mantenimiento] janitor: {r2['clientes_attach_matados']} "
-                      f"clientes tmux muertos matados")
+                      f"dead tmux clients killed")
             pesados = r2['huerfanos_pesados']
             pids = {p['pid'] for p in pesados}
             if pesados and pids != _huerfanos_avisados:
@@ -577,9 +577,9 @@ async def poller_purga_logs():
                 from plotspace.core.events import broadcaster
                 await broadcaster.broadcast_global({'type': 'sistema_huerfanos',
                                                     'procesos': pesados})
-                print(f'[mantenimiento] janitor: {len(pesados)} huérfanos pesados '
-                      f'detectados (avisados por WS): {[p["pid"] for p in pesados]}')
+                print(f'[mantenimiento] janitor: {len(pesados)} heavy orphans '
+                      f'detected (warned over WS): {[p["pid"] for p in pesados]}')
             elif not pesados:
                 _huerfanos_avisados.clear()
         except Exception as e:
-            print(f'[mantenimiento] janitor de huérfanos falló: {e}')
+            print(f'[mantenimiento] orphans janitor failed: {e}')

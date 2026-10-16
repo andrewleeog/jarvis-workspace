@@ -32,9 +32,9 @@ _RE_AGENTE = re.compile(r'^##\s+(.+?)\s+\([^)]*terminal\s+(\d+)\)')
 # File line:      «- `<path>` — write ×N (hace Xm)[ 🔒 dueño]»
 _RE_PATH = re.compile(r'^-\s+`([^`]+)`')
 # Permission line:      «- <emoji> <asker> pidió PERMISO sobre `<archivo>` ... [→ OK/NO]»
-_RE_PERMISO = re.compile(r'^-\s+\S+\s+(.+?)\s+pidió PERMISO sobre `([^`]+)`')
+_RE_PERMISO = re.compile(r'^-\s+\S+\s+(.+?)\s+requested PERMISSION over `([^`]+)`')
 # Reservation line:      «- 🔖 `<path>` — <name> (hace Xm)»
-_RE_RESERVA = re.compile(r'^-\s+🔖\s+`([^`]+)`\s+—\s+(.+?)\s+\(hace')
+_RE_RESERVA = re.compile(r'^-\s+🔖\s+`([^`]+)`\s+—\s+(.+?)\s+\(\d+[smh] ago')
 
 
 def parsear_reservas(texto):
@@ -45,7 +45,7 @@ def parsear_reservas(texto):
     en_reservas = False
     for linea in (texto or '').splitlines():
         if linea.startswith('## '):
-            en_reservas = linea.startswith('## Reservas')
+            en_reservas = linea.startswith('## Reservations')
             continue
         if en_reservas:
             m = _RE_RESERVA.match(linea)
@@ -75,7 +75,7 @@ def parsear_live(texto):
             en_permisos = False
             continue
         if linea.startswith('## '):                 # another section (e.g. Permisos)
-            en_permisos = linea.startswith('## Permisos')
+            en_permisos = linea.startswith('## Permissions')
             actual = None
             continue
         if en_permisos:

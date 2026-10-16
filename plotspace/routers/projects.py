@@ -208,7 +208,7 @@ async def proyectos_con_trabajo():
 async def cambiar_seccion_proyecto(project_id: int, datos: SectionPatch):
     """Mueve un proyecto entre Pinned/Active/Archived o cambia su orden interno."""
     if datos.seccion and datos.seccion not in ('pinned', 'active', 'archived'):
-        raise HTTPException(status_code=400, detail="Sección inválida")
+        raise HTTPException(status_code=400, detail="Invalid section")
 
     conn = get_db()
     try:
@@ -216,7 +216,7 @@ async def cambiar_seccion_proyecto(project_id: int, datos: SectionPatch):
         cursor.execute('SELECT id, seccion, orden FROM projects WHERE id = ?', (project_id,))
         actual = cursor.fetchone()
         if not actual:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         nueva_seccion = datos.seccion if datos.seccion is not None else actual['seccion']
         nuevo_orden   = datos.orden   if datos.orden   is not None else actual['orden']
@@ -244,9 +244,9 @@ async def renombrar_proyecto(project_id: int, datos: RenameRequest):
     NO toca la carpeta en disco — la `ruta` queda intacta (rename cosmético)."""
     nuevo_nombre = datos.nombre.strip()
     if not nuevo_nombre:
-        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
     if '/' in nuevo_nombre or '\\' in nuevo_nombre:
-        raise HTTPException(status_code=400, detail="El nombre no puede contener barras")
+        raise HTTPException(status_code=400, detail="Name cannot contain slashes")
     if len(nuevo_nombre) > 200:
         raise HTTPException(status_code=400, detail="Nombre demasiado largo")
 
@@ -256,7 +256,7 @@ async def renombrar_proyecto(project_id: int, datos: RenameRequest):
         cursor.execute('SELECT * FROM projects WHERE id = ?', (project_id,))
         row = cursor.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         # El rename es SÓLO cosmético: cambia el nombre visible en el dashboard y
         # NUNCA toca la carpeta en disco (la `ruta` queda intacta). Así personalizar
@@ -294,16 +294,16 @@ async def crear_proyecto(project: ProjectCreate):
     ruta = os.path.abspath(os.path.expanduser(project.ruta.strip()))
 
     if not nombre:
-        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío")
+        raise HTTPException(status_code=400, detail="Name cannot be empty")
     if not ruta:
-        raise HTTPException(status_code=400, detail="La ruta no puede estar vacía")
+        raise HTTPException(status_code=400, detail="Path cannot be empty")
 
     # Bloquear paths "peligrosos" (raíz, /home, /etc, etc.)
     # Permitir /home/user (homedir del usuario) pero no /home a secas.
     if ruta in RUTAS_PROHIBIDAS:
         raise HTTPException(
             status_code=400,
-            detail=f"La ruta '{ruta}' está en el sistema. Usá una subcarpeta tuya."
+            detail=f"Path '{ruta}' is a system path. Use a subfolder of your own."
         )
 
     # Auto-crear la carpeta si no existe. Si falla, el usuario lo necesita saber.
@@ -313,7 +313,7 @@ async def crear_proyecto(project: ProjectCreate):
         except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail=f"No se pudo crear la carpeta '{ruta}': {e}"
+                detail=f"Could not create folder '{ruta}': {e}"
             )
 
     ahora = datetime.now().isoformat()
@@ -360,7 +360,7 @@ async def obtener_proyecto(project_id: int):
         row = cursor.fetchone()
 
         if not row:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
 
         return dict(row)
     finally:
@@ -370,7 +370,7 @@ async def obtener_proyecto(project_id: int):
 @router.delete("/{project_id}")
 async def eliminar_proyecto(
     project_id: int,
-    keep_folder: bool = Query(False, description="Si true, NO borra la carpeta del disco — solo lo saca del workspace"),
+    keep_folder: bool = Query(False, description="If true, does NOT delete the folder from disk — only removes it from the workspace"),
 ):
     """Elimina un proyecto: DB rows, sesiones tmux, preview server.
     Si keep_folder=false (default), también borra la CARPETA del disco.
@@ -390,7 +390,7 @@ async def eliminar_proyecto(
         cursor.execute('SELECT id, ruta FROM projects WHERE id = ?', (project_id,))
         row = cursor.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+            raise HTTPException(status_code=404, detail="Project not found")
         ruta = row['ruta']
 
         cursor.execute('SELECT id FROM terminals WHERE project_id = ?', (project_id,))
@@ -407,7 +407,7 @@ async def eliminar_proyecto(
         for tid in terminal_ids:
             await teardown_terminal(tid)
     except Exception as e:
-        print(f'[delete] teardown de terminales falló, mato tmux directo: {e}')
+        print(f'[delete] terminal teardown failed, killing tmux directly: {e}')
         from plotspace.core.terminal_backend import backend
         for tid in terminal_ids:
             backend().matar_sesion_por_nombre(backend().nombre_sesion(tid))
@@ -417,7 +417,7 @@ async def eliminar_proyecto(
         from plotspace.routers.orchestrator import _detener_preview_si_existe
         _detener_preview_si_existe(project_id)
     except Exception as e:
-        print(f'[delete] No pude parar preview: {e}')
+        print(f'[delete] could not stop preview: {e}')
 
     # 3. Limpiar DB
     conn = get_db()
@@ -442,7 +442,7 @@ async def eliminar_proyecto(
     elif not ruta_abs or not os.path.isdir(ruta_abs):
         folder_deleted = True  # no había nada que borrar, OK
     elif _es_ruta_protegida(ruta_abs):
-        folder_error = f"No borré '{ruta_abs}': es el propio Jarvis o una ruta protegida. Proyecto sí quitado del workspace."
+        folder_error = f"Did not delete '{ruta_abs}': it is Jarvis itself or a protected path. The project was still removed from the workspace."
     else:
         # rmtree con onerror para forzar permisos de write si hace falta
         import stat
@@ -451,16 +451,16 @@ async def eliminar_proyecto(
                 os.chmod(path, stat.S_IWUSR | stat.S_IRUSR | stat.S_IXUSR)
                 func(path)
             except Exception as e:
-                print(f'[delete] No pude forzar borrado de {path}: {e}')
+                print(f'[delete] could not force-delete {path}: {e}')
                 raise
         try:
             # En un thread: rmtree de un proyecto con node_modules/ puede tardar
             # decenas de segundos y clavaba el event loop entero.
             await asyncio.to_thread(shutil.rmtree, ruta_abs, onerror=_force_remove)
             folder_deleted = True
-            print(f'[delete] Carpeta borrada: {ruta_abs}')
+            print(f'[delete] Folder deleted: {ruta_abs}')
         except Exception as e:
-            folder_error = f"Error borrando carpeta: {e}"
+            folder_error = f"Error deleting folder: {e}"
             print(f'[delete] {folder_error}')
 
     await _avisar_projects_update()
@@ -484,7 +484,7 @@ async def reordenar_proyectos(req: ReorderRequest):
     Útil para drag & drop: el frontend manda el nuevo orden completo
     de una sección y atomicamente se actualiza."""
     if req.seccion not in ('pinned', 'active', 'archived'):
-        raise HTTPException(status_code=400, detail="Sección inválida")
+        raise HTTPException(status_code=400, detail="Invalid section")
     conn = get_db()
     try:
         cursor = conn.cursor()

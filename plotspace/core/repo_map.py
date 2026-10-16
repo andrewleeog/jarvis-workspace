@@ -130,7 +130,7 @@ def generar_mapa(project_path: str, max_niveles: int = 3,
     if total > max_lineas:
         recorte = max(max_lineas - len(encabezado) - 1, 0)
         omitidas = len(cuerpo) - recorte
-        cuerpo = cuerpo[:recorte] + [f'… (+{omitidas} carpetas más)']
+        cuerpo = cuerpo[:recorte] + [f'… (+{omitidas} more folders)']
     return '\n'.join(encabezado + cuerpo)
 
 

@@ -91,7 +91,7 @@ async def local_subir(files: list[UploadFile] = File(default_factory=list),
     Extensiones fuera de la lista de audio saltan como error catalogable."""
     recibidos = list(files or []) + list(archivos or [])
     if not recibidos:
-        return {'error': 'no se recibieron archivos'}
+        return {'error': 'no files received'}
     guardados = []
     for u in recibidos:
         try:
@@ -110,7 +110,7 @@ async def spotify_login(request: Request):
     """URL de authorize (PKCE S256) o error si SPOTIFY_CLIENT_ID no está."""
     url = sp.url_login(_base_url(request))
     if not url:
-        return {'url': '', 'error': 'Spotify no está configurado (SPOTIFY_CLIENT_ID)'}
+        return {'url': '', 'error': 'Spotify is not configured (SPOTIFY_CLIENT_ID)'}
     return {'url': url, 'error': None}
 
 

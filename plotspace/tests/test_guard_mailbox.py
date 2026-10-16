@@ -18,8 +18,8 @@ def test_mensaje_que_menciona_staged_va_primero_y_marcado():
             {'de': 'B', 'msg': 'ojo: cambié la firma en tasks.js'}]
     out = gmb.avisos(msgs, ['frontend/sections/tasks/tasks.js'])
     assert len(out) == 2
-    assert 'MENCIONA tasks.js' in out[0] and 'de B' in out[0]
-    assert out[1].startswith('📬 de A')
+    assert 'MENTIONS tasks.js' in out[0] and 'from B' in out[0]
+    assert out[1].startswith('📬 from A')
 
 
 def test_sin_match_todos_normales():

@@ -261,14 +261,14 @@ def bloque_relevantes(project_path: str, archivos: list, tarea: str, k: int = 5,
                                        [m['slug'] for m in rel], 'inyectada')
         except Exception:
             pass
-    lineas = ["\n\nMEMORIAS DEL PROYECTO probablemente relevantes — leé las que "
-              "toquen tu tarea ANTES de empezar:"]
+    lineas = ["\n\nPROJECT MEMORIES likely relevant — read the ones "
+              "touching your task BEFORE starting:"]
     for m in rel:
-        marca = ' [LAPIDA: algo acá se eliminó — no reintroducir]' if m['estado'] == 'lapida' else ''
+        marca = ' [LAPIDA: something here was removed — do not reintroduce]' if m['estado'] == 'lapida' else ''
         lineas.append(f"  • .jarvis/memory/{m['slug']}.md — {m['titulo']}{marca}")
         # el hecho en una línea, no solo el puntero: hasta el agente que no
         # abre el archivo se lleva el resumen
         if m.get('resumen') and m['resumen'].lower() != m['titulo'].lower():
             lineas.append(f"      ↳ {m['resumen']}")
-    lineas.append("(índice completo: .jarvis/memory/INDEX.md)")
+    lineas.append("(full index: .jarvis/memory/INDEX.md)")
     return '\n'.join(lineas)

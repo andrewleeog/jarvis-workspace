@@ -24,13 +24,13 @@ from plotspace.routers.orchestrator import (
 
 def test_tope_de_terminales_es_el_real():
     assert str(MAX_TERMINALES) in SYSTEM_PROMPT
-    assert 'Máximo 7 terminales' not in SYSTEM_PROMPT
+    assert 'Maximum 7 terminals' not in SYSTEM_PROMPT
 
 
 def test_no_dice_que_el_orquestador_commitea():
     # El orquestador NO commitea: commitea cada agente.
-    assert 'vos commiteás' not in SYSTEM_PROMPT
-    assert 'commitean' in SYSTEM_PROMPT
+    assert 'you commit' not in SYSTEM_PROMPT.lower()
+    assert 'agents commit' in SYSTEM_PROMPT
 
 
 def test_clis_completos():
@@ -46,13 +46,13 @@ def test_documenta_enviar_prompt_y_reuso():
 
 
 def test_documenta_mapa_del_proyecto():
-    assert '[Mapa del proyecto]' in SYSTEM_PROMPT
+    assert '[Project map]' in SYSTEM_PROMPT
 
 
 # ─── El cierre es del ENGINE, no del LLM (fuente única) ──────────────────────
 
 def test_prompt_no_exige_cierre_literal():
-    assert 'CIERRE LITERAL' not in SYSTEM_PROMPT
+    assert 'LITERAL CLOSURE' not in SYSTEM_PROMPT
 
 
 def test_tarea_del_agente_lleva_el_cierre_sentinel():
@@ -65,7 +65,7 @@ def test_tarea_del_agente_lleva_el_cierre_sentinel():
 def test_tarea_del_agente_lleva_su_territorio():
     tarea = _tarea_para_agente('hacer X', ['src/a.py', 'src/b/*'], 7)
     assert 'src/a.py, src/b/*' in tarea
-    assert 'EXCLUSIVA' in tarea
+    assert 'EXCLUSIVELY' in tarea
 
 
 # ─── El motor de workflows ya no existe (2026-09-28) ─────────────────────────

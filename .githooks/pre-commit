@@ -52,7 +52,7 @@ fi
 # Más proveedores (Telegram, GitHub PAT, OpenAI, JWT, asignaciones genéricas)
 # + los VALORES REALES de los secretos locales (token, .env, telegram.json),
 # leídos en runtime. Su gemelo pre-push re-escanea TODO el rango saliente.
-if ! git diff --cached | "$_JV_PY" "$(git rev-parse --show-toplevel)/scripts/scan_secretos.py" --origen "el commit (staged)"; then
+if ! git diff --cached | "$_JV_PY" "$(git rev-parse --show-toplevel)/scripts/scan_secretos.py" --origen "the commit (staged)"; then
   fail=1
 fi
 

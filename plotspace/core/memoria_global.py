@@ -22,44 +22,44 @@ from plotspace.core.datadir import ruta_data
 SEMILLA = [
     {
         'slug': 'regla-de-puertos',
-        'titulo': 'Regla de puertos: el 3000 es de Jarvis — chequeá antes de servir',
+        'titulo': 'Port rule: 3000 is Jarvis — check before serving',
         'categoria': 'entorno',
         'tags': ['puertos', 'dev-server', 'entorno'],
         'cuerpo': (
-            "El puerto **3000 está PROHIBIDO**: ahí corre Jarvis Workspace. Antes de "
-            "levantar CUALQUIER server (dev, api, http.server): listá los puertos "
-            "ocupados (`ss -tlnp` o `lsof -iTCP -sTCP:LISTEN -P -n`), elegí uno LIBRE "
-            "(rango 5000-5999 u 8081-8999) y pasalo EXPLÍCITO (`--port`/`-p`/`PORT=`) "
-            "— no confíes en el default de la herramienta. NUNCA mates un proceso de un "
-            "puerto que no levantaste vos.\n\n"
-            "**WSL no reenvía puertos nuevos:** en WSL2 un server en un puerto recién "
-            "abierto escucha DENTRO de WSL (`curl` 200) pero el `localhostForwarding` a "
-            "menudo NO lo reenvía al browser de Windows. Para mostrarle algo al usuario, "
-            "servilo por un puerto que ya estaba vivo al boot o usá la IP de WSL "
-            "(`hostname -I` → `http://<ip>:PUERTO`)."),
+            "The **3000 port is FORBIDDEN**: Jarvis Workspace runs there. Before "
+            "starting ANY server (dev, api, http.server): list busy ports "
+            "(`ss -tlnp` or `lsof -iTCP -sTCP:LISTEN -P -n`), pick a FREE one "
+            "(range 5000-5999 or 8081-8999) and pass it EXPLICITLY "
+            "(`--port`/`-p`/`PORT=`) — do not trust the tool's default. NEVER kill "
+            "a process on a port you did not start.\n\n"
+            "**WSL does not forward new ports:** on WSL2 a server on a newly opened "
+            "port listens INSIDE WSL (`curl` 200) but `localhostForwarding` often "
+            "does NOT forward it to the Windows browser. To show the user something, "
+            "serve it on a port that was already alive at boot or use the WSL IP "
+            "(`hostname -I` → `http://<ip>:PORT`)."),
     },
     {
         'slug': 'indice-git-compartido-swarm',
-        'titulo': 'Índice de git COMPARTIDO: nunca git add -A / commit -am',
+        'titulo': 'SHARED git index: never git add -A / commit -am',
         'categoria': 'entorno',
         'tags': ['git', 'commit', 'swarm', 'entorno'],
         'cuerpo': (
-            "Todos los agentes comparten el MISMO árbol de trabajo. Un `git add -A` o "
-            "`git commit -am` se lleva puesto el trabajo sin commitear de OTROS agentes "
-            "dentro de tu commit. Commiteá SIEMPRE con rutas EXPLÍCITAS: "
-            "`git add <ruta1> <ruta2> && git commit -m \"...\"`. Si al stagear ves "
-            "archivos que no son tuyos, dejalos afuera. Mensaje en Conventional Commits."),
+            "All agents share the SAME working tree. A `git add -A` or `git commit -am` "
+            "sweeps OTHER agents' uncommitted work into your commit. ALWAYS commit "
+            "with EXPLICIT paths: `git add <ruta1> <ruta2> && git commit -m \"...\"`. "
+            "If you see files that are not yours while staging, leave them out. "
+            "Conventional Commits message."),
     },
     {
         'slug': 'gotcha-wsl-mata-procesos-detached',
-        'titulo': 'WSL apaga el distro al cerrar la última consola — los detached NO sobreviven',
+        'titulo': 'WSL shuts the distro down when the last console closes — detached processes do NOT survive',
         'categoria': 'entorno',
         'tags': ['wsl', 'entorno', 'gotcha'],
         'cuerpo': (
-            "Cerrar la última consola de WSL apaga el distro entero a los pocos "
-            "segundos, matando cualquier proceso 'detached' (`&`, `nohup`, `setsid`) y "
-            "el tmux server con él. Para procesos que deben sobrevivir, corrélos dentro "
-            "de una sesión tmux persistente, no como huérfanos de la shell."),
+            "Closing the last WSL console shuts the whole distro down a few seconds "
+            "later, killing any 'detached' process (`&`, `nohup`, `setsid`) and the "
+            "tmux server with it. For processes that must survive, run them inside "
+            "a persistent tmux session, not as shell orphans."),
     },
 ]
 

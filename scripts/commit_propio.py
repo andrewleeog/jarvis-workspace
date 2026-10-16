@@ -71,7 +71,7 @@ def _tomar_lock(archivo, espera=30.0):
         except OSError:
             if time.monotonic() >= limite:
                 raise RuntimeError(
-                    'otro agente lleva más de 30s commiteando — reintentá en un momento')
+                    'another agent has been committing for over 30s — retry in a moment')
             time.sleep(0.1)
 
 
@@ -220,7 +220,7 @@ def _stage_por_hunk(raiz, archivo, mios, ajenos):
 
 def main():
     ap = argparse.ArgumentParser(description='Safe commit in the shared tree')
-    ap.add_argument('-m', '--mensaje', required=True)
+    ap.add_argument('-m', '--message', required=True)
     ap.add_argument('extras', nargs='*', help='extra paths to include')
     args = ap.parse_args()
 

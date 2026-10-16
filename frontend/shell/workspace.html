@@ -18,44 +18,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@1&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/static/shared/tokens.css?v=28">
-  <link rel="stylesheet" href="/static/shared/base.css?v=160">
-  <link rel="stylesheet" href="/static/shell/launcher-plus.css?v=21">
-  <link rel="stylesheet" href="/static/sections/orchestrator/orchestrator.css?v=34">
-  <link rel="stylesheet" href="/static/shared/abrir-rapido.css?v=1">
-  <link rel="stylesheet" href="/static/sections/editor-slide/editor-slide.css?v=17">
-  <link rel="stylesheet" href="/static/sections/mobile-preview/mobile-preview.css?v=37">
-  <link rel="stylesheet" href="/static/sections/tasks/tasks.css?v=11">
-  <link rel="stylesheet" href="/static/sections/memory/memory.css?v=20">
-  <link rel="stylesheet" href="/static/sections/review/review.css?v=15">
+  <link rel="stylesheet" href="/static/shared/tokens.css?v=24">
+  <link rel="stylesheet" href="/static/shared/base.css?v=151">
+  <link rel="stylesheet" href="/static/shell/launcher-plus.css?v=18">
+  <link rel="stylesheet" href="/static/sections/orchestrator/orchestrator.css?v=28">
+  <link rel="stylesheet" href="/static/sections/editor/editor.css?v=28">
+  <link rel="stylesheet" href="/static/sections/editor-slide/editor-slide.css?v=13">
+  <link rel="stylesheet" href="/static/sections/mobile-preview/mobile-preview.css?v=36">
+  <link rel="stylesheet" href="/static/sections/tasks/tasks.css?v=7">
+  <link rel="stylesheet" href="/static/sections/memory/memory.css?v=13">
+  <link rel="stylesheet" href="/static/sections/review/review.css?v=9">
   <link rel="stylesheet" href="/static/sections/preview/preview.css?v=24">
-  <link rel="stylesheet" href="/static/sections/browser/browser.css?v=4">
-  <link rel="stylesheet" href="/static/sections/radio/radio.css?v=19">
-  <link rel="stylesheet" href="/static/sections/panel/panel.css?v=62">
-  <link rel="stylesheet" href="/static/sections/settings/settings.css?v=48">
-  <link rel="stylesheet" href="/static/sections/settings/extensions.css?v=2">
+  <link rel="stylesheet" href="/static/sections/browser/browser.css?v=2">
+  <link rel="stylesheet" href="/static/sections/radio/radio.css?v=18">
+  <link rel="stylesheet" href="/static/sections/panel/panel.css?v=57">
+  <link rel="stylesheet" href="/static/sections/settings/settings.css?v=37">
   <link rel="stylesheet" href="/static/sections/settings/groq-setup.css?v=2">
-  <link rel="stylesheet" href="/static/sections/terminals/quick-picker.css?v=19">
+  <link rel="stylesheet" href="/static/sections/terminals/quick-picker.css?v=18">
   <link rel="stylesheet" href="/static/sections/terminals/swarm.css?v=5">
-  <link rel="stylesheet" href="/static/sections/preview/dev-servers.css?v=10">
+  <link rel="stylesheet" href="/static/sections/preview/dev-servers.css?v=9">
   <!-- xterm VENDOREADO local (frontend/vendor/xterm, mismas versiones que se usaban
        del CDN): las terminales no dependen de internet para renderizar. -->
   <link rel="stylesheet" href="/static/vendor/xterm/xterm.css?v=530">
-  <link rel="stylesheet" href="/static/shared/liquid-glass.css?v=8">
-  <link rel="stylesheet" href="/static/shared/fondo.css?v=6">
 </head>
 <body>
-  <!-- Estado de la franja ANTES del primer pintado: este script corre síncrono apenas se
-       abre <body>, así que la franja ya nace colapsada (riel) si así estaba. Si esperara a
-       workspace.js (al final de la página) se pintaba un frame ancho y recién después se
-       achicaba. Misma clave que workspace.js (_STRIP_KEY). -->
-  <script>try { if (localStorage.getItem('jarvis.strip.hidden') === '1') document.body.classList.add('jw-rail'); } catch (e) {}</script>
   <script src="/static/shared/themes.js?v=9"></script>
-  <script src="/static/shared/glass.js?v=2"></script>
-  <script src="/static/shared/fondo.js?v=3"></script>
   <!-- Escala de la app (⚙→Apariencia): zoom global de la interfaz. Va acá
        arriba, junto al tema, para que la app nazca ya escalada (sin salto). -->
-  <script src="/static/shared/escala.js?v=5"></script>
+  <script src="/static/shared/escala.js?v=4"></script>
   <script>window.JarvisThemes?.init?.(); window.JarvisEscala?.init?.();</script>
 
   <!-- ── Franja de proyectos (224px): conmutador Workspaces/Editor + panes ── -->
@@ -283,6 +273,14 @@
             <span class="jw-tab-lbl">Jarvis</span>
             <span class="jw-badge" hidden></span>
           </button>
+          <!-- Editor del dock RETIRADO: reemplazado por el editor deslizante
+               (#jw-editor / window.JarvisSlideEditor). La pestaña queda oculta y
+               panel.js la marca visible:false; el pane Monaco de abajo queda dormido. -->
+          <button class="jw-tab" data-tab="editor" type="button" role="tab" aria-selected="false" title="Editor" aria-label="Editor" hidden>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 16 4-4-4-4M6 8l-4 4 4 4m8.5-12-5 16"/></svg>
+            <span class="jw-tab-lbl">Editor</span>
+            <span class="jw-badge" hidden></span>
+          </button>
           <button class="jw-tab" data-tab="tasks" type="button" role="tab" aria-selected="false" title="Tareas" aria-label="Tareas">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7m4-7v4m4-4v9"/></svg>
             <span class="jw-tab-lbl">Tareas</span>
@@ -299,6 +297,10 @@
             <span class="jw-badge" hidden></span>
           </button>
           <span class="jw-dock-actions">
+            <button class="jw-icon-btn" id="jw-dock-external" type="button" hidden
+                    title="Abrir en pestaña de navegador" aria-label="Abrir en pestaña de navegador">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            </button>
             <button class="jw-icon-btn" id="jw-dock-max" type="button" hidden title="Pantalla completa" aria-label="Pantalla completa">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="2,6 2,2 6,2"/><polyline points="14,10 14,14 10,14"/></svg>
             </button>
@@ -312,6 +314,95 @@
           <div class="jw-pane" data-pane="preview" id="jw-pane-preview" role="tabpanel" hidden></div>
           <div class="jw-pane" data-pane="jarvis" role="tabpanel" hidden>
             <aside class="panel-orquestador" id="orch-panel"></aside>
+          </div>
+          <!-- Si tocás este pane, replicá en editor-standalone.html (copia verbatim, IDs idénticos) -->
+          <div class="jw-pane" data-pane="editor" role="tabpanel" hidden>
+            <section class="panel-editor" id="panel-editor">
+              <!-- File tree (220px) -->
+              <div class="file-tree" id="file-tree">
+                <div class="file-tree-header">
+                  <span class="ft-title" id="ft-project-name">archivos</span>
+                  <button class="ft-refresh-btn" id="ft-upload-btn" title="Subir al proyecto" aria-label="Subir al proyecto"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+                  <button class="ft-refresh-btn" id="ft-refresh-btn" title="Refrescar árbol" aria-label="Refrescar árbol"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg></button>
+                  <input type="file" id="ft-upload-input" multiple hidden aria-hidden="true">
+                  <input type="file" id="ft-upload-dir-input" webkitdirectory directory multiple hidden aria-hidden="true">
+                  <input type="file" id="ft-upload-zip-input" accept=".zip,application/zip" hidden aria-hidden="true">
+                  <div class="ft-upload-menu" id="ft-upload-menu" hidden>
+                    <button type="button" data-act="files">Subir archivos</button>
+                    <button type="button" data-act="dir">Subir carpeta</button>
+                    <button type="button" data-act="zip">Subir .zip</button>
+                  </div>
+                </div>
+                <div class="ft-search-row">
+                  <input type="text" id="ft-search-input" class="ft-search" placeholder="Filtrar archivos…"
+                         autocomplete="off" spellcheck="false">
+                </div>
+                <div class="file-tree-body" id="file-tree-body">
+                  <div class="ft-empty" aria-hidden="true">
+                    <div class="skeleton"></div>
+                    <div class="skeleton"></div>
+                    <div class="skeleton"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Panel de búsqueda en contenido (⌘⇧F). Oculto por defecto. -->
+              <div class="search-panel oculto" id="search-panel">
+                <div class="search-panel-head">
+                  <input type="text" class="search-input" id="search-input"
+                         placeholder="Buscar en archivos…" spellcheck="false" autocomplete="off">
+                  <div class="search-toggles">
+                    <button class="search-toggle" id="search-case" title="Distinguir mayúsculas (Aa)">Aa</button>
+                    <button class="search-toggle" id="search-word" title="Palabra completa">\b</button>
+                    <button class="search-toggle" id="search-regex" title="Expresión regular">.*</button>
+                  </div>
+                </div>
+                <div class="search-meta" id="search-meta"></div>
+                <div class="search-results" id="search-results"></div>
+              </div>
+
+              <!-- Monaco container -->
+              <div class="monaco-container" id="monaco-container">
+                <div class="monaco-tabs" id="monaco-tabs"></div>
+                <div class="editor-breadcrumb" id="editor-breadcrumb" hidden></div>
+                <div class="monaco-split" id="monaco-split">
+                  <div class="monaco-group" id="monaco-group-0" data-group="0">
+                    <div class="monaco-editor-wrap" id="monaco-editor-wrap">
+                      <div class="monaco-placeholder" id="monaco-placeholder">
+                        <svg class="mp-icon" viewBox="0 0 16 16" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2.5h5l4 4v7a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8.5 2.5v4h4"/></svg>
+                        <span class="mp-eyebrow">Editor</span>
+                        <span class="mp-text">Abrí un archivo del árbol para empezar a editar.</span>
+                      </div>
+                      <div class="editor-binary-view" id="editor-binary-view" hidden></div>
+                      <div class="monaco-editor-host" id="monaco-editor-host"></div>
+                    </div>
+                  </div>
+                  <div class="monaco-splitter" id="monaco-splitter" hidden></div>
+                  <div class="monaco-group" id="monaco-group-1" data-group="1" hidden>
+                    <div class="monaco-editor-wrap" id="monaco-editor-wrap-1">
+                      <div class="monaco-placeholder" id="monaco-placeholder-1">
+                        <svg class="mp-icon" viewBox="0 0 16 16" width="64" height="64" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 2.5h5l4 4v7a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8.5 2.5v4h4"/></svg>
+                        <span class="mp-eyebrow">Editor</span>
+                        <span class="mp-text">Panel secundario.</span>
+                      </div>
+                      <div class="editor-binary-view" id="editor-binary-view-1" hidden></div>
+                      <div class="monaco-editor-host" id="monaco-editor-host-1"></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="status-bar" id="monaco-footer">
+                  <span class="sb-seg sb-lang" id="mf-lang">—</span>
+                  <span class="sb-seg sb-pos" id="mf-pos">Ln 1, Col 1</span>
+                  <span class="sb-seg sb-enc">UTF-8</span>
+                  <span class="mf-save-status" id="editor-save-status"></span>
+                  <span class="sb-spacer"></span>
+                  <button class="sb-save-btn" id="mf-save-btn" title="Guardar (Ctrl+S)">
+                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5h8l3 3v8a1 1 0 0 1-1 1h-10a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M4.5 2.5v4h6v-4M5.5 10.5h5"/></svg>
+                    <span>Guardar</span>
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
           <div class="jw-pane" data-pane="tasks" role="tabpanel" hidden>
             <section class="panel-tasks" id="tasks-panel"></section>
@@ -335,12 +426,6 @@
       <button type="button" class="tl2-x" id="modal-terminal-close" aria-label="Cerrar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-      <!-- Mientras el diálogo del SISTEMA está abierto (puede quedar detrás del navegador). -->
-      <div class="tl2-wait" id="tl-native-wait" role="status" aria-live="polite" hidden>
-        <span class="tl2-wait-spin" aria-hidden="true"></span>
-        <b>Elegí la carpeta en la ventana de tu sistema</b>
-        <span id="tl-native-hint"></span>
-      </div>
       <div class="tl2-head">
         <div class="tl2-eyebrow">Workspace</div>
         <h2>Agregar proyecto</h2>
@@ -360,19 +445,19 @@
           <div class="tl2-field">
             <label for="tl-new-name">Proyecto <span class="opt">· se crea la carpeta</span></label>
             <div class="tl2-in tl2-proj">
-              <button type="button" class="tl2-path" id="tl-base-new" data-browse="loc" title="/home/user/projects">
+              <button type="button" class="tl2-path" id="tl-base-new" data-browse="loc" title="/home/user/proyectos">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H3z"/></svg>
-                <b data-i18n-skip>~/projects</b>
+                <b data-i18n-skip>~/proyectos</b>
                 <svg class="chv" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4,6 8,10 12,6"/></svg>
               </button>
               <span class="tl2-sl">/</span>
-              <input type="text" id="tl-new-name" placeholder="my-app" autocomplete="off" spellcheck="false">
+              <input type="text" id="tl-new-name" placeholder="mi-app" autocomplete="off" spellcheck="false">
             </div>
-            <input type="hidden" id="tl-new-loc" value="/home/user/projects">
+            <input type="hidden" id="tl-new-loc" value="/home/user/proyectos">
           </div>
           <div class="tl2-prev">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
-            <span class="t"><b>Se guardará en</b><span id="tl-new-prev" data-i18n-skip>/home/user/projects/my-app</span></span>
+            <span class="t"><b>Se guardará en</b><span id="tl-new-prev" data-i18n-skip>/home/user/proyectos/mi-app</span></span>
           </div>
         </div>
 
@@ -390,7 +475,7 @@
               </div>
               <div class="tl2-pick-sel" id="tl-pick-sel" hidden>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H3z"/></svg>
-                <span class="t" data-i18n-skip><b id="tl-pick-name">my-app</b><span id="tl-pick-path">/home/user/projects/my-app</span></span>
+                <span class="t" data-i18n-skip><b id="tl-pick-name">mi-app</b><span id="tl-pick-path">/home/user/proyectos/mi-app</span></span>
                 <button type="button" class="tl2-browse" data-browse="path">Cambiar</button>
               </div>
             </div>
@@ -406,7 +491,7 @@
         </div>
 
         <div class="tl2-field">
-          <label id="tl-grid-label">Terminales a lanzar <span class="tl-capacidad" id="tl-capacidad" aria-live="polite"></span><span id="tl-pend" hidden></span></label>
+          <label id="tl-grid-label">Terminales a lanzar <span class="tl-capacidad" id="tl-capacidad" aria-live="polite"></span></label>
           <div class="tl2-cli-grid" id="tl-grid" role="group" aria-labelledby="tl-grid-label"></div>
         </div>
 
@@ -451,6 +536,54 @@
   <!-- (El modal "Nuevo Proyecto" fue eliminado: crear un workspace ahora
        vive en el LAUNCHER de terminales — ruta absoluta = proyecto nuevo.) -->
 
+  <!-- ── Modal: Editor inline de skill .md ────────────────────── -->
+  <div class="modal-overlay" id="modal-skill-md" style="display:none">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <span class="modal-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h8l4 4V21a.5.5 0 0 1-.5.5h-11A.5.5 0 0 1 6 21V2.5zM14 2.5v4h4"/></svg></span>
+        <h2 id="skill-md-title">Nueva skill</h2>
+        <button class="modal-close" id="modal-skill-md-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="skill-md-nombre">Nombre del archivo (sin .md)</label>
+          <input type="text" id="skill-md-nombre" placeholder="websocket-patterns" autocomplete="off">
+          <span class="form-hint">Solo letras, números, guiones y underscores</span>
+        </div>
+        <div class="form-group">
+          <label for="skill-md-content">Contenido (Markdown)</label>
+          <textarea id="skill-md-content" rows="18" class="ps-md-textarea"
+            placeholder="---&#10;name: mi-skill&#10;description: Para qué sirve&#10;---&#10;&#10;# Contenido de la skill"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-danger" id="ps-btn-delete-skill" style="display:none">Eliminar</button>
+          <span class="form-spacer"></span>
+          <button type="button" class="btn btn-ghost" id="ps-btn-cancel-skill">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="ps-btn-save-skill">Guardar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Comando de instalación de plugin ──────────────── -->
+  <div class="modal-overlay" id="modal-install-cmd" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.5V8M15 2.5V8M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0V8zM12 17v4.5"/></svg></span>
+        <h2 id="install-cmd-title">Instalar plugin</h2>
+        <button class="modal-close" id="modal-install-cmd-close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p class="install-hint">Ejecutá este comando en una terminal Claude Code:</p>
+        <pre class="install-cmd-box" id="install-cmd-code"></pre>
+        <div class="form-actions">
+          <span class="form-spacer"></span>
+          <button type="button" class="btn btn-primary" id="btn-copy-install-cmd">Copiar comando</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Modal: Historial de conversaciones ───────────────────── -->
   <div class="modal-overlay" id="modal-historial" style="display:none">
     <div class="modal modal-wide">
@@ -473,32 +606,6 @@
 
   <!-- xterm VENDOREADO local (frontend/vendor/xterm): xterm@5.3.0 + addons fit@0.8.0 /
        webgl@0.16.0 / canvas@0.5.0 — mismas versiones que se usaban del CDN. -->
-  <!-- Panel derecho ANTES del primer pintado: si estaba abierto en este proyecto, nace abierto, con
-       su ancho y su pestaña. Sin esto el panel "aparecía" recién cuando cargaban los scripts de
-       abajo (el workspace se pintaba sin panel y después se achicaba para hacerle lugar). Mismas
-       claves y defaults que panel.js (DEFAULT_W 320 / DEFAULT_TAB preview); panel.js después
-       confirma o corrige (clamp, pestañas ocultas) con el estado real. -->
-  <script>
-    (function () {
-      try {
-        var pid = new URLSearchParams(location.search).get('id');
-        var L = window.localStorage;
-        if (!pid || L.getItem('jarvis.dock.open.' + pid) !== '1') return;
-        var tab = L.getItem('jarvis.dock.tab.' + pid) || 'preview';
-        var dock = document.getElementById('jw-dock');
-        var btn = document.querySelector('.jw-tab[data-tab="' + tab + '"]');
-        var pane = document.querySelector('.jw-pane[data-pane="' + tab + '"]');
-        if (!dock || !btn || btn.hidden || !pane) return;       // pestaña no válida/oculta: lo resuelve panel.js
-        var w = parseInt(L.getItem('jarvis.dock.width.' + pid), 10);
-        if (isNaN(w)) w = parseInt(L.getItem('jarvis.dock.width'), 10);
-        dock.hidden = false;
-        dock.style.width = (isNaN(w) ? 320 : Math.max(300, w)) + 'px';
-        var sp = document.getElementById('jw-dock-splitter'); if (sp) sp.hidden = false;
-        btn.classList.add('activa'); btn.setAttribute('aria-selected', 'true');
-        document.querySelectorAll('.jw-pane').forEach(function (p) { p.hidden = p.dataset.pane !== tab; });
-      } catch (e) { /* localStorage bloqueado: panel.js lo resuelve */ }
-    })();
-  </script>
   <script src="/static/vendor/xterm/xterm.js?v=530"></script>
   <script src="/static/vendor/xterm/xterm-addon-fit.js?v=080"></script>
   <!-- Renderers acelerados por GPU: con 9 agentes en vivo el renderer DOM
@@ -510,76 +617,64 @@
        esto, las tablas U6 default desalinean el cursor en los redibujos de
        readline (el historial "se tragaba" el prompt, bug 2026-07-17) -->
   <script src="/static/vendor/xterm/xterm-addon-unicode11.js?v=1"></script>
-  <script src="/static/shared/ui.js?v=17"></script>
-  <script src="/static/shared/cli-instalar.js?v=2"></script>
-  <script src="/static/shared/ruta-corta.js?v=1"></script>
+  <script src="/static/shared/ui.js?v=15"></script>
   <script src="/static/shared/audio-meter.js?v=2"></script>
   <script src="/static/shared/ws-status.js?v=2"></script>
-  <script src="/static/shared/i18n.js?v=6"></script>
-  <script src="/static/shared/i18n-dict.js?v=96"></script>
-  <script src="/static/shared/notify.js?v=4"></script>
-  <script src="/static/shared/atencion.js?v=1"></script>
-  <script src="/static/shared/sonido-fin.js?v=1"></script>
+  <script src="/static/shared/i18n.js?v=4"></script>
+  <script src="/static/shared/i18n-dict.js?v=78"></script>
+  <script src="/static/shared/notify.js?v=1"></script>
   <script src="/static/shared/stt-jerga.js?v=7"></script>
-  <script src="/static/sections/orchestrator/orchestrator.js?v=35"></script>
+  <script src="/static/sections/orchestrator/orchestrator.js?v=27"></script>
   <script src="/static/sections/terminals/terminal-input-block.js?v=2"></script>
-  <script src="/static/sections/terminals/terminal-flow.js?v=19"></script>
+  <script src="/static/sections/terminals/terminal-flow.js?v=20"></script>
   <script src="/static/sections/terminals/attach-queue.js?v=1"></script>
   <script src="/static/sections/terminals/terminal-fit.js?v=3"></script>
   <script src="/static/sections/terminals/terminal-render.js?v=3"></script>
   <script src="/static/sections/terminals/terminal-nudge.js?v=2"></script>
   <script src="/static/sections/terminals/terminal-latencia.js?v=1"></script>
-  <script src="/static/sections/terminals/terminal-eco-local.js?v=5"></script>
+  <script src="/static/sections/terminals/terminal-eco-local.js?v=4"></script>
   <script src="/static/sections/terminals/terminal-diagnostico.js?v=1"></script>
   <script src="/static/sections/terminals/terminal-ctxmenu.js?v=1"></script>
-  <script src="/static/sections/terminals/terminal-paste.js?v=2"></script>
+  <script src="/static/sections/terminals/terminal-paste.js?v=1"></script>
   <script src="/static/sections/terminals/terminal-drop.js?v=1"></script>
-  <script src="/static/sections/terminals/terminal-links.js?v=1"></script>
-  <script src="/static/sections/terminals/terminal-consultas.js?v=1"></script>
-  <script src="/static/sections/terminals/terminal.js?v=175"></script>
-  <script src="/static/sections/terminals/terminal-layout.js?v=59"></script>
+  <script src="/static/sections/terminals/terminal.js?v=168"></script>
+  <script src="/static/sections/terminals/terminal-layout.js?v=58"></script>
   <script src="/static/sections/terminals/terminal-aura.js?v=2"></script>
   <script src="/static/sections/terminals/titulos-i18n.js?v=1"></script>
   <script src="/static/sections/terminals/agent-semaphore.js?v=2"></script>
-  <script src="/static/sections/terminals/swarm-link.js?v=5"></script>
-  <script src="/static/sections/terminals/swarm-overlay.js?v=4"></script>
+  <script src="/static/sections/terminals/swarm-link.js?v=4"></script>
+  <script src="/static/sections/terminals/swarm-overlay.js?v=3"></script>
   <script src="/static/sections/panel/strip.js?v=1"></script>
-  <script src="/static/sections/panel/panel.js?v=18"></script>
-  <script src="/static/sections/panel/launcher-state.js?v=11"></script>
+  <script src="/static/sections/panel/panel.js?v=17"></script>
+  <script src="/static/sections/panel/launcher-state.js?v=9"></script>
   <script src="/static/shell/diag-update.js?v=1"></script>
-  <script src="/static/sections/panel/updater.js?v=41"></script>
+  <script src="/static/sections/panel/updater.js?v=40"></script>
   <script src="/static/shared/presence.js?v=3"></script>
-  <script src="/static/sections/terminals/quick-picker.js?v=19"></script>
-  <script src="/static/sections/preview/preview-radio.js?v=6"></script>
-  <script src="/static/sections/browser/browser.js?v=8"></script>
-  <script src="/static/sections/radio/radio.js?v=29"></script>
+  <script src="/static/sections/terminals/quick-picker.js?v=16"></script>
+  <script src="/static/sections/preview/preview-radio.js?v=5"></script>
+  <script src="/static/sections/browser/browser.js?v=6"></script>
+  <script src="/static/sections/radio/radio.js?v=26"></script>
   <script src="/static/sections/radio/spotify.js?v=4"></script>
   <script src="/static/sections/preview/dev-servers.js?v=10"></script>
-  <script src="/static/sections/settings/plugin-icons.js?v=3"></script>
-  <script src="/static/sections/settings/extensions.js?v=3"></script>
-  <script src="/static/sections/settings/uso-cuentas.js?v=2"></script>
-  <script src="/static/sections/settings/fondo-ui.js?v=3"></script>
-  <script src="/static/sections/settings/settings.js?v=54"></script>
-  <script src="/static/sections/settings/groq-setup.js?v=3"></script>
+  <script src="/static/sections/settings/plugin-icons.js?v=2"></script>
+  <script src="/static/sections/settings/settings.js?v=42"></script>
+  <script src="/static/sections/settings/groq-setup.js?v=2"></script>
   <script src="/static/shell/ptt-fijado.js?v=4"></script>
   <script src="/static/shell/ptt-captura.js?v=1"></script>
   <script src="/static/shell/voice-field.js?v=3"></script>
   <script src="/static/shell/voice-target.js?v=1"></script>
   <script src="/static/shell/foco-hover.js?v=1"></script>
   <script src="/static/shell/window-chrome.js?v=6"></script>
-  <script src="/static/shell/workspace.js?v=336"></script>
-  <script src="/static/shared/monaco.js?v=2"></script>
-  <script src="/static/shared/abrir-rapido.js?v=1"></script>
-  <script src="/static/sections/editor-slide/editor-slide.js?v=14"></script>
+  <script src="/static/shell/workspace.js?v=318"></script>
+  <script src="/static/sections/editor/editor.js?v=41"></script>
+  <script src="/static/sections/editor-slide/editor-slide.js?v=8"></script>
   <script src="/static/sections/mobile-preview/device-catalog.js?v=2"></script>
   <script src="/static/sections/mobile-preview/mobile-preview-pure.js?v=15"></script>
-  <script src="/static/sections/mobile-preview/mobile-preview.js?v=55"></script>
-  <script src="/static/sections/tasks/tasks.js?v=10"></script>
+  <script src="/static/sections/mobile-preview/mobile-preview.js?v=52"></script>
+  <script src="/static/sections/tasks/tasks.js?v=7"></script>
   <script src="/static/sections/memory/live-state.js?v=2"></script>
-  <script src="/static/sections/memory/memory-meta.js?v=7"></script>
-  <script src="/static/sections/memory/memory-graph.js?v=1"></script>
-  <script src="/static/sections/memory/memory.js?v=23"></script>
-  <script src="/static/sections/review/review-grupos.js?v=1"></script>
-  <script src="/static/sections/review/review.js?v=20"></script>
+  <script src="/static/sections/memory/memory-meta.js?v=5"></script>
+  <script src="/static/sections/memory/memory.js?v=14"></script>
+  <script src="/static/sections/review/review.js?v=12"></script>
 </body>
 </html>

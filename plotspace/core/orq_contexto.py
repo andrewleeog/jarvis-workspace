@@ -63,7 +63,7 @@ def recortar(texto: str, tope: int) -> str:
     texto = texto or ''
     if len(texto) <= tope:
         return texto
-    return texto[:max(0, tope - 20)].rstrip() + '\n  … (recortado)'
+    return texto[:max(0, tope - 20)].rstrip() + '\n  … (truncated)'
 
 
 def hace(segundos) -> str:
@@ -105,58 +105,58 @@ def es_libre(info: dict) -> bool:
 def motivo_no_libre(info: dict) -> str:
     """'' si está libre; si no, POR QUÉ (para el aviso de enviar_prompt)."""
     if info.get('estado') in ('caido', 'sin_sesion'):
-        return 'su CLI está caído (no hay nadie que lea el mensaje)'
+        return 'its CLI is down (nobody will read the message)'
     if info.get('fase') == 'trabajando':
-        return 'está trabajando ahora mismo'
+        return 'is working right now'
     if info.get('fase') == 'arrancando':
-        return 'todavía está arrancando'
+        return 'still starting up'
     if info.get('esperando'):
-        return 'tiene una pregunta en pantalla esperando respuesta'
+        return 'has a question on screen waiting for an answer'
     return ''
 
 
-_ICONO_FASE = {'trabajando': '🟢 trabajando', 'idle': '⚪ quieta',
-               'arrancando': '⏳ arrancando'}
+_ICONO_FASE = {'trabajando': '🟢 working', 'idle': '⚪ idle',
+               'arrancando': '⏳ starting'}
 
 
 def formatear_terminal(t: dict, info: dict) -> str:
     """Una terminal: cabecera con estado + detalle + cola del pane."""
     cab = [f"ID {t['id']}: {t['nombre']} ({t.get('tipo_ia') or 'manual'})"]
     if info.get('estado') in ('caido', 'sin_sesion'):
-        cab.append('💀 CAÍDA — su CLI no está corriendo, NO le mandes nada')
+        cab.append('💀 DOWN — its CLI is not running, do NOT send it anything')
     else:
         fase = _ICONO_FASE.get(info.get('fase') or '', '')
         if fase:
             dur = hace(info.get('fase_hace_s'))
-            cab.append(f'{fase}' + (f' hace {dur}' if dur else ''))
+            cab.append(f'{fase}' + (f' {dur} ago' if dur else ''))
         if info.get('esperando'):
-            cab.append('❓ ESPERANDO RESPUESTA (hay una pregunta en su pantalla)')
-    cab.append('LIBRE' if es_libre(info) else 'ocupada')
+            cab.append('❓ WAITING FOR ANSWER (there is a question on its screen)')
+    cab.append('FREE' if es_libre(info) else 'busy')
     lineas = ['- ' + ' — '.join(cab)]
 
     origen = info.get('origen')
     if origen and origen.get('orquestacion'):
-        lineas.append(f"    lanzada por Jarvis para: {una_linea(origen['orquestacion'], 140)}")
+        lineas.append(f"    launched by Jarvis for: {una_linea(origen['orquestacion'], 140)}")
     tarea = info.get('tarea')
     if tarea:
-        lineas.append(f"    tarea: {una_linea(tarea['texto'], 220)}"
-                      + (f" (hace {hace(tarea['hace_s'])})" if tarea.get('hace_s') is not None else ''))
+        lineas.append(f"    task: {una_linea(tarea['texto'], 220)}"
+                      + (f" ({hace(tarea['hace_s'])} ago)" if tarea.get('hace_s') is not None else ''))
     archivos = info.get('archivos') or []
     if archivos:
         vista = ', '.join(
             f"{a['path']}{' 🔒' if a.get('dueno') else ''}" for a in archivos[:6])
         if len(archivos) > 6:
-            vista += f' (+{len(archivos) - 6} más)'
-        lineas.append(f'    editó: {vista}')
+            vista += f' (+{len(archivos) - 6} more)'
+        lineas.append(f'    edited: {vista}')
     ev = info.get('ultimo_evento')
     if ev:
         det = f": {una_linea(ev['motivo'], 160)}" if ev.get('motivo') else ''
-        lineas.append(f"    último cierre: {ev['event']} hace {hace(ev.get('hace_s'))}{det}")
+        lineas.append(f"    last close: {ev['event']} {hace(ev.get('hace_s'))} ago{det}")
     for d in info.get('dev_servers') or []:
         lineas.append(f'    dev server: {d}')
     cola = info.get('cola') or []
     if cola:
-        lineas.append('    pantalla (últimas líneas):')
+        lineas.append('    screen (last lines):')
         lineas.extend(f'      | {l}' for l in cola)
     return '\n'.join(lineas)
 
@@ -164,17 +164,17 @@ def formatear_terminal(t: dict, info: dict) -> str:
 def formatear_bloque_terminales(terminales: list, infos: dict,
                                 tope: int = TOPE_TERMINALES) -> str:
     if not terminales:
-        return 'No hay terminales activas.'
+        return 'No active terminals.'
     libres = [t for t in terminales if es_libre(infos.get(t['id']) or {})]
-    cab = f"Terminales activas: {len(terminales)} · libres: " + (
-        ', '.join(f"#{t['id']} {t['nombre']}" for t in libres) if libres else 'ninguna')
+    cab = f"Active terminals: {len(terminales)} · free: " + (
+        ', '.join(f"#{t['id']} {t['nombre']}" for t in libres) if libres else 'none')
     partes = [cab]
     usado = len(cab)
     for t in terminales:
         bloque = formatear_terminal(t, infos.get(t['id']) or {})
         if usado + len(bloque) > tope:
-            partes.append(f'… (+{len(terminales) - len(partes) + 1} terminales sin detalle '
-                          'por presupuesto)')
+            partes.append(f'… (+{len(terminales) - len(partes) + 1} terminals without detail '
+                          'due to budget)')
             break
         partes.append(bloque)
         usado += len(bloque)
@@ -204,16 +204,16 @@ def repartir_colas(infos: dict, tope: int = TOPE_COLA_PANE) -> None:
 def formatear_git(info: dict) -> str:
     if not info:
         return ''
-    lineas = [f"rama: {info.get('rama') or '?'}"]
+    lineas = [f"branch: {info.get('rama') or '?'}"]
     cambios = info.get('cambios') or []
     if cambios:
-        lineas.append(f'sin commitear ({len(cambios)}): ' + ', '.join(cambios[:20])
+        lineas.append(f'uncommitted ({len(cambios)}): ' + ', '.join(cambios[:20])
                       + (' …' if len(cambios) > 20 else ''))
     else:
-        lineas.append('árbol limpio (todo commiteado)')
+        lineas.append('clean tree (everything committed)')
     commits = info.get('commits') or []
     if commits:
-        lineas.append('últimos commits:')
+        lineas.append('recent commits:')
         lineas.extend(f'  {c}' for c in commits)
     return recortar('\n'.join(lineas), TOPE_GIT)
 
@@ -234,7 +234,7 @@ def guia_desde_markdown(texto: str, tope: int = TOPE_GUIA) -> str:
     salida = ' '.join(intro)
     salida = una_linea(salida, max(200, tope // 2))
     if titulos:
-        salida += '\nsecciones: ' + ' · '.join(titulos[:30])
+        salida += '\nsections: ' + ' · '.join(titulos[:30])
     return recortar(salida, tope)
 
 
@@ -242,7 +242,7 @@ def formatear_eventos(eventos: list) -> str:
     lineas = []
     for e in eventos:
         det = f": {una_linea(e['motivo'], 140)}" if e.get('motivo') else ''
-        lineas.append(f"- hace {hace(e.get('hace_s'))} · {e.get('nombre') or '#' + str(e['terminal_id'])}"
+        lineas.append(f"- {hace(e.get('hace_s'))} ago · {e.get('nombre') or '#' + str(e['terminal_id'])}"
                       f" · {e['event']}{det}")
     return recortar('\n'.join(lineas), TOPE_EVENTOS)
 
@@ -251,10 +251,10 @@ def formatear_coordinacion(permisos: list, reservas: list, actividad: list) -> s
     lineas = []
     for p in permisos:
         if p.get('estado') == 'pendiente':
-            lineas.append(f"- ⏳ {p.get('pide')} pidió permiso sobre {p.get('archivo')} "
-                          f"a {p.get('a') or p.get('dueno') or '?'}")
+            lineas.append(f"- ⏳ {p.get('pide')} asked {p.get('a') or p.get('dueno') or '?'} "
+                          f"for permission on {p.get('archivo')}")
     for r in reservas:
-        lineas.append(f"- 🔖 {r['nombre']} reservó {r['path']} (hace {hace(r.get('hace_s'))})")
+        lineas.append(f"- 🔖 {r['nombre']} reserved {r['path']} ({hace(r.get('hace_s'))} ago)")
     for a in actividad:
         if a.get('clase') in ('conflicto', 'permiso'):
             lineas.append(f"- {a.get('hora', '')} {una_linea(a.get('texto', ''), 160)}")
@@ -293,7 +293,7 @@ def guia_proyecto(ruta: str) -> str:
             continue
         g = guia_desde_markdown(texto)
         if g:
-            return f'({nombre} — leelo con Read si necesitás el detalle)\n{g}'
+            return f'({nombre} — read it with Read if you need the detail)\n{g}'
     return ''
 
 
@@ -458,21 +458,21 @@ async def construir_bloques(project: dict, terminales: list) -> list:
     except Exception as e:
         print(f'[orq-contexto] colas de pane: {e}')
 
-    bloques = [f"[Estado actual]\n{formatear_bloque_terminales(terminales, infos)}"]
+    bloques = [f"[Current state]\n{formatear_bloque_terminales(terminales, infos)}"]
 
-    proyecto = [f"nombre: {project.get('nombre') or '?'} · ruta: {ruta}"]
+    proyecto = [f"name: {project.get('nombre') or '?'} · path: {ruta}"]
     if datos.get('raiz'):
-        proyecto.append('archivos en la raíz: ' + ', '.join(datos['raiz']))
+        proyecto.append('files in root: ' + ', '.join(datos['raiz']))
     git_txt = formatear_git(datos.get('git') or {})
     if git_txt:
         proyecto.append(git_txt)
-    bloques.append('[Proyecto]\n' + '\n'.join(proyecto))
+    bloques.append('[Project]\n' + '\n'.join(proyecto))
 
     if datos.get('guia'):
-        bloques.append(f"[Guía del proyecto]\n{datos['guia']}")
+        bloques.append(f"[Project guide]\n{datos['guia']}")
 
     if datos['evs']:
-        bloques.append(f"[Eventos]\n{formatear_eventos(datos['evs'][:10])}")
+        bloques.append(f"[Events]\n{formatear_eventos(datos['evs'][:10])}")
 
     try:
         from plotspace.core import agent_live
@@ -485,8 +485,8 @@ async def construir_bloques(project: dict, terminales: list) -> list:
         actividad = list(agent_live._actividad.get(pid, []))[:20]
         coord = formatear_coordinacion(permisos, reservas, actividad)
         if coord:
-            bloques.append(f"[Coordinación]\n{coord}")
+            bloques.append(f"[Coordination]\n{coord}")
     except Exception as e:
-        print(f'[orq-contexto] coordinación: {e}')
+        print(f'[orq-contexto] coordination: {e}')
 
     return bloques

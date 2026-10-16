@@ -4931,7 +4931,7 @@ async function abrirModalHistorial() {
 
     cont.innerHTML = '';
     for (const t of threads) {
-      const fecha = t.updated_at ? new Date(t.updated_at).toLocaleString('es-AR', {
+      const fecha = t.updated_at ? new Date(t.updated_at).toLocaleString('en-US', {
         day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
       }) : '—';
       const el = document.createElement('div');
@@ -5018,7 +5018,7 @@ function exportarConversacion() {
   const proyectoNombre = elTitulo?.textContent?.trim() || 'proyecto';
   const fecha          = new Date();
   const fechaISO       = fecha.toISOString().slice(0, 10);
-  const fechaHumana    = fecha.toLocaleString('es-AR', {
+  const fechaHumana    = fecha.toLocaleString('en-US', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });

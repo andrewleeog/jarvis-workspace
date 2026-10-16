@@ -13,18 +13,18 @@ sys.path.insert(0, os.path.join(
 import commit_propio as cp
 
 
-LIVE = """# LIVE — qué está haciendo cada agente (auto-generado, NO editar)
-Actualizado: 2026-07-19 03:00:00
+LIVE = """# LIVE — what each agent is doing (auto-generated, DO NOT edit)
+Updated: 2026-07-19 03:00:00
 
-## Backend (claude, terminal 100) — 🟢 trabajando
-- `plotspace/core/database.py` — write ×3 (hace 1m) 🔒 dueño
-- `plotspace/routers/system.py` — write ×1 (hace 5m)
+## Backend (claude, terminal 100) — 🟢 working
+- `plotspace/core/database.py` — write ×3 (1m ago) 🔒 owner
+- `plotspace/routers/system.py` — write ×1 (5m ago)
 
 ## Frontend (claude, terminal 200) — ⚪ idle
-- `frontend/shell/workspace.js` — write ×2 (hace 5m) 🔒 dueño
+- `frontend/shell/workspace.js` — write ×2 (5m ago) 🔒 owner
 
-## Permisos
-- ⏳ Frontend pidió PERMISO sobre `plotspace/core/database.py` (dueño: Backend) — hace 1m
+## Permissions
+- ⏳ Frontend requested PERMISSION over `plotspace/core/database.py` (owner: Backend) — 1m ago
 """
 
 
@@ -184,5 +184,5 @@ def test_esperar_de_mas_avisa_en_vez_de_colgarse(tmp_path):
     with open(ruta, 'w') as a:
         cp._tomar_lock(a)
         with open(ruta, 'w') as b:
-            with pytest.raises(RuntimeError, match='otro agente'):
+            with pytest.raises(RuntimeError, match='another agent'):
                 cp._tomar_lock(b, espera=0.2)

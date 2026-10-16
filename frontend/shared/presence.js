@@ -59,10 +59,7 @@
     }
 
     function _localeActual() {
-      try {
-        return (window.JarvisI18n && window.JarvisI18n.lang && window.JarvisI18n.lang() === 'en')
-          ? 'en' : 'es';
-      } catch (e) { return 'es'; }
+      return 'en';
     }
 
     function _projectId() {

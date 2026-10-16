@@ -81,7 +81,7 @@ def resolver_y_validar(url: str, permitir_loopback=None) -> tuple:
     try:
         partes = urlsplit(u)
     except ValueError:
-        return (False, 'URL inválida', None)
+        return (False, 'Invalid URL', None)
     if partes.scheme not in ('http', 'https'):
         return (False, 'solo http/https', None)
     host = partes.hostname
@@ -91,7 +91,7 @@ def resolver_y_validar(url: str, permitir_loopback=None) -> tuple:
         return (True, None, '127.0.0.1')
     ips = _resolver(host)
     if not ips:
-        return (False, 'el host no resuelve', None)
+        return (False, 'host does not resolve', None)
     for ip in ips:
         if _ip_bloqueada(ip):
             return (False, f'host interno no permitido ({ip})', None)

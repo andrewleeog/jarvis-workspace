@@ -181,7 +181,7 @@ async def _procesar(path, tid):
                 terminal_id=tid, tool_name='apply_patch',
                 tool_input={'file_path': ruta, 'old_string': antes, 'new_string': despues}))
         except Exception as e:
-            print(f'[codex-watch] op de terminal {tid} falló: {e}')
+            print(f'[codex-watch] op de terminal {tid} failed: {e}')
 
 
 async def _ciclo():

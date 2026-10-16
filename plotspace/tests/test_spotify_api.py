@@ -144,7 +144,7 @@ def test_token_valido_sin_token():
         assert not sp.token_valido()
         with pytest.raises(sp.SpotifyError) as exc:
             asyncio.run(sp.buscar('queen'))
-        assert 'Sin sesión de Spotify' in str(exc.value)
+        assert 'No Spotify session' in str(exc.value)
 
 
 def test_intercambiar_falla_sin_json():
@@ -275,7 +275,7 @@ def test_buscar_401_sin_sesion():
         with _fijar_net(lambda m, url, kw: _FakeResp(401)):
             with pytest.raises(sp.SpotifyError) as exc:
                 asyncio.run(sp.buscar('q'))
-        assert 'Sin sesión de Spotify' in str(exc.value)
+        assert 'No Spotify session' in str(exc.value)
 
 
 def test_buscar_rate_429_y_403():
@@ -286,7 +286,7 @@ def test_buscar_rate_429_y_403():
             with _fijar_net(lambda m, url, kw, c=code: _FakeResp(c)):
                 with pytest.raises(sp.SpotifyError) as exc:
                     asyncio.run(sp.buscar('q'))
-            assert 'saturado' in str(exc.value)
+            assert 'rate-limited' in str(exc.value)
 
 
 def test_refresh_al_vencer():
@@ -322,7 +322,7 @@ def test_refresh_sin_refresh_token():
                            'expires_at': time.time() - 10})
         with pytest.raises(sp.SpotifyError) as exc:
             asyncio.run(sp.buscar('q'))
-        assert 'Sin sesión de Spotify' in str(exc.value)
+        assert 'No Spotify session' in str(exc.value)
 
 
 def test_refresh_concurrente_una_sola_llamada():
@@ -399,7 +399,7 @@ def test_login_sin_client_id_error_limpio():
                 client = TestClient(app)
                 r = client.get('/api/radio/spotify/login')
                 assert r.status_code == 200
-                assert r.json() == {'url': '', 'error': 'Spotify no está configurado (SPOTIFY_CLIENT_ID)'}
+                assert r.json() == {'url': '', 'error': 'Spotify is not configured (SPOTIFY_CLIENT_ID)'}
                 r = client.get('/api/radio/spotify/estado')
                 assert r.status_code == 200
                 assert r.json() == {'configurado': False, 'sesion': False}
@@ -422,7 +422,7 @@ def test_token_para_sdk():
         # Sin sesión → 401 con el mensaje amable
         r = client.get('/api/radio/spotify/token')
         assert r.status_code == 401
-        assert 'Sin sesión de Spotify' in r.json()['detail']
+        assert 'No Spotify session' in r.json()['detail']
 
         # Con sesión vigente → access_token + expires_in (mínimo 60)
         sp._guardar_token({'access_token': 'AT-OK', 'refresh_token': 'RT-1',

@@ -665,10 +665,10 @@ async def reconciliar_al_boot():
                 'terminal_id': row['tid'],
                 'terminal_nombre': row['tnombre'],
             })
-        print(f'[agent-watch] boot reconcile: {len(rows)} terminales, '
-              f'{len(trabajando)} trabajando')
+        print(f'[agent-watch] boot reconcile: {len(rows)} terminals, '
+              f'{len(trabajando)} working')
     except Exception as e:
-        print(f'[agent-watch] reconciliar_al_boot falló: {e}')
+        print(f'[agent-watch] reconciliar_al_boot failed: {e}')
 
 
 def _norm_pane(texto: str) -> str:

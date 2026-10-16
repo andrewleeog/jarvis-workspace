@@ -202,7 +202,7 @@
   const _escAttr = _esc;
   // Idioma actual de la UI (lo maneja el i18n). El modal se crea por innerHTML y
   // el observer traduce el chrome fijo; los ítems dinámicos los traducimos acá.
-  const _lang = () => { try { return (global.JarvisI18n && global.JarvisI18n.lang) ? global.JarvisI18n.lang() : 'es'; } catch (_) { return 'es'; } };
+  const _lang = () => { try { return (global.JarvisI18n && global.JarvisI18n.lang) ? global.JarvisI18n.lang() : 'en'; } catch (_) { return 'en'; } };
   // Textos con interpolación (nº de versión) que el diccionario no puede cubrir.
   const _t = (es, en) => (_lang() === 'en' ? en : es);
 

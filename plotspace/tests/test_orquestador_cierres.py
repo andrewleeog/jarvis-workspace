@@ -98,7 +98,7 @@ def test_cerrar_terminal_de_otro_proyecto_se_niega():
     motivo, rec, _ = _con_parches(
         [fila], {},
         lambda r: asyncio.run(orch._cerrar_terminal(5, project_id=8)))
-    assert motivo and 'OTRO proyecto' in motivo
+    assert motivo and 'ANOTHER project' in motivo
     assert rec.calls == []          # no hubo teardown
 
 
@@ -137,7 +137,7 @@ def test_cerrar_terminal_trabajando_se_niega_y_con_insistencia_cierra():
         return m1, m2
 
     (m1, m2), rec, _ = _con_parches([fila], {5: {'fase': 'trabajando'}}, flujo)
-    assert m1 and 'TRABAJANDO' in m1     # primera vez: negado con motivo
+    assert m1 and 'WORKING' in m1        # primera vez: negado con motivo
     assert m2 is None                     # el usuario insistió: se ejecuta
     assert rec.calls == [5]
 

@@ -33,15 +33,15 @@ def test_es_libre_exige_viva_quieta_sin_pregunta():
 
 def test_motivo_no_libre_explica_el_porque():
     assert oc.motivo_no_libre({'fase': 'idle'}) == ''
-    assert 'caído' in oc.motivo_no_libre({'estado': 'caido'})
-    assert 'pregunta' in oc.motivo_no_libre({'esperando': True})
-    assert 'trabajando' in oc.motivo_no_libre({'fase': 'trabajando'})
+    assert 'down' in oc.motivo_no_libre({'estado': 'caido'})
+    assert 'question' in oc.motivo_no_libre({'esperando': True})
+    assert 'working' in oc.motivo_no_libre({'fase': 'trabajando'})
 
 
 def test_terminal_caida_se_marca_y_no_figura_libre():
     t = {'id': 7, 'nombre': 'Back', 'tipo_ia': 'claude'}
     txt = oc.formatear_bloque_terminales([t], {7: {'fase': 'idle', 'estado': 'caido'}})
-    assert 'CAÍDA' in txt and 'libres: ninguna' in txt
+    assert 'DOWN' in txt and 'free: none' in txt
 
 
 def test_terminal_muestra_tarea_archivos_evento_y_pantalla():
@@ -53,13 +53,13 @@ def test_terminal_muestra_tarea_archivos_evento_y_pantalla():
             'dev_servers': ['http://localhost:5173/'],
             'cola': ['npm run dev', 'ready in 300ms']}
     txt = oc.formatear_terminal(t, info)
-    assert '🟢 trabajando hace 4 min' in txt
-    assert 'tarea: armá el login' in txt
+    assert '🟢 working 4 min ago' in txt
+    assert 'task: armá el login' in txt
     assert 'a.js 🔒' in txt and 'b.css' in txt
-    assert 'TASK_BLOCKED hace 1 min: falta la API key' in txt
+    assert 'TASK_BLOCKED 1 min ago: falta la API key' in txt
     assert 'http://localhost:5173/' in txt
     assert '| ready in 300ms' in txt
-    assert 'ocupada' in txt
+    assert 'busy' in txt
 
 
 def test_bloque_respeta_el_presupuesto():
@@ -67,7 +67,7 @@ def test_bloque_respeta_el_presupuesto():
     infos = {i: {'fase': 'idle', 'cola': ['x' * 140] * 6} for i in range(40)}
     txt = oc.formatear_bloque_terminales(ts, infos, tope=3000)
     assert len(txt) < 3600
-    assert 'sin detalle por presupuesto' in txt
+    assert 'without detail due to budget' in txt
 
 
 def test_repartir_colas_prioriza_a_quien_espera_respuesta():
@@ -82,7 +82,7 @@ def test_guia_desde_markdown_da_intro_e_indice():
     md = '# Proyecto\n\nApp de notas en Flask.\n\n## Comandos\nx\n## Reglas\ny\n'
     g = oc.guia_desde_markdown(md)
     assert 'App de notas en Flask.' in g
-    assert 'secciones: Comandos · Reglas' in g
+    assert 'sections: Comandos · Reglas' in g
 
 
 def test_hace_humano():
@@ -149,7 +149,7 @@ def test_info_git_ve_rama_cambios_y_commits(tmp_path):
     assert info['rama'] == 'main'
     assert info['cambios'] == ['b.txt']
     assert 'feat: primero' in info['commits'][0]
-    assert 'rama: main' in oc.formatear_git(info)
+    assert 'branch: main' in oc.formatear_git(info)
 
 
 def test_construir_bloques_arma_todo_y_degrada_sin_tmux(tmp_path, monkeypatch):
@@ -163,10 +163,10 @@ def test_construir_bloques_arma_todo_y_degrada_sin_tmux(tmp_path, monkeypatch):
     ts = [{'id': 11, 'nombre': 'Back', 'tipo_ia': 'claude'}]
     bloques = asyncio.run(oc.construir_bloques({'id': 1, 'nombre': 'P', 'ruta': str(ruta)}, ts))
     txt = '\n\n'.join(bloques)
-    assert txt.startswith('[Estado actual]')
+    assert txt.startswith('[Current state]')
     assert '| salida de 11' in txt
-    assert '[Proyecto]' in txt and 'CLAUDE.md' in txt
-    assert '[Guía del proyecto]' in txt and 'Usá pytest.' in txt
+    assert '[Project]' in txt and 'CLAUDE.md' in txt
+    assert '[Project guide]' in txt and 'Usá pytest.' in txt
     assert '[Tablero de tareas]' not in txt and '[Workflows activos]' not in txt
 
 
@@ -196,17 +196,17 @@ def test_el_prompt_del_orquestador_lleva_el_contexto_completo(tmp_path, monkeypa
     req = orch.ChatRequest(project_id=1, message='revisá main.py')
     _, _, mensajes, _ = asyncio.run(orch._preparar_contexto_chat(req))
     txt = mensajes[-1]['content']
-    assert '[Estado actual]' in txt and '¿Sobrescribo el archivo?' in txt
-    assert '[Proyecto]' in txt and '[Guía del proyecto]' in txt
+    assert '[Current state]' in txt and '¿Sobrescribo el archivo?' in txt
+    assert '[Project]' in txt and '[Project guide]' in txt
     assert txt.rstrip().endswith('revisá main.py')
 
 
 def test_titulos_contexto_para_mostrar_que_vio():
     from plotspace.routers.orchestrator import _titulos_contexto
-    msg = ('[Estado actual]\nx\n\n[Proyecto]\ny\n\n[Memoria relevante al pedido — '
-           'tenela en cuenta:]\nz\n\n[Orden]\nhola')
+    msg = ('[Current state]\nx\n\n[Project]\ny\n\n[Relevant memory for this request — '
+           'keep it in mind:]\nz\n\n[Request]\nhola')
     assert _titulos_contexto([{'role': 'user', 'content': msg}]) == [
-        'Estado actual', 'Proyecto', 'Memoria relevante al pedido']
+        'Current state', 'Project', 'Relevant memory for this request']
     assert _titulos_contexto([]) == []
 
 
@@ -240,7 +240,7 @@ def test_stream_sse_emite_contexto_progreso_reinicio_y_done(tmp_path, monkeypatc
         return [json.loads(c[5:]) async for c in resp.body_iterator]
     evs = asyncio.run(correr())
     tipos = [e['type'] for e in evs]
-    assert tipos[0] == 'contexto' and 'Estado actual' in evs[0]['bloques']
+    assert tipos[0] == 'contexto' and 'Current state' in evs[0]['bloques']
     assert {'type': 'progreso', 'herramienta': 'Read', 'detalle': 'main.py'} in evs
     assert tipos.index('reinicio') < len(tipos) - 1
     assert tipos[-1] == 'done'

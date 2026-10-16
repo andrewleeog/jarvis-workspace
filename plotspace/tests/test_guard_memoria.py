@@ -74,26 +74,26 @@ def test_sin_tags_y_sin_categoria_viola():
 def test_cuerpo_gigante_viola_solo_nuevas():
     src = VALIDA + '\n'.join(f'línea {i}' for i in range(160))
     v = gm.validar('gotcha-fit-scrollbar', src, es_nueva=True)
-    assert any('líneas' in x for x in v)
+    assert any('lines' in x for x in v)
     # editar una legacy larga (agregar estado:, un hallazgo) no exige
     # reescribirla en el mismo commit — eso empuja al --no-verify
-    assert not any('líneas' in x for x in
+    assert not any('lines' in x for x in
                    gm.validar('gotcha-fit-scrollbar', src, es_nueva=False))
 
 
 def test_fecha_en_slug_viola_solo_nuevas():
-    assert any('bitácora' in x for x in
+    assert any('log entry' in x for x in
                gm.validar('auditoria-2026-07-18', VALIDA, es_nueva=True))
     # legacy editada: no se bloquea por el nombre que ya tiene
-    assert not any('bitácora' in x for x in
+    assert not any('log entry' in x for x in
                    gm.validar('auditoria-2026-07-18', VALIDA, es_nueva=False))
 
 
 def test_fecha_en_titulo_viola_solo_nuevas():
     src = VALIDA.replace('titulo: Gotcha del fit de xterm con scrollbar oculta',
                          'titulo: Bug hunt del fit (2026-07-18)')
-    assert any('bitácora' in x for x in gm.validar('bug-hunt-fit', src, es_nueva=True))
-    assert not any('bitácora' in x for x in gm.validar('bug-hunt-fit', src, es_nueva=False))
+    assert any('log entry' in x for x in gm.validar('bug-hunt-fit', src, es_nueva=True))
+    assert not any('log entry' in x for x in gm.validar('bug-hunt-fit', src, es_nueva=False))
 
 
 def test_anio_suelto_en_titulo_no_viola():

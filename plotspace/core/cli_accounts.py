@@ -950,31 +950,31 @@ def diagnostico(tipo):
         out["archivos"] = [cred, cfg]
         if not cred["existe"]:
             out["pistas"].append(
-                "No existe el archivo de credenciales de Claude Code. Iniciá sesión con "
-                "`claude` → /login en una terminal de Jarvis (la que corre en este mismo "
-                "entorno que el servidor).")
+                "Claude Code's credentials file doesn't exist. Sign in with "
+                "`claude` → /login in a Jarvis terminal (the one running in this same "
+                "environment as the server).")
             # ¿Se logueó del lado de Windows pero Jarvis corre en WSL?
             try:
                 import glob
                 for p in glob.glob("/mnt/c/Users/*/.claude/.credentials.json"):
                     out["pistas"].append(
-                        f"Hay una sesión en Windows ({p}), pero Jarvis corre en WSL y usa "
-                        "otra carpeta: logueate desde una terminal DE JARVIS.")
+                        f"There's a session on Windows ({p}), but Jarvis runs on WSL and uses "
+                        "a different folder: sign in from a JARVIS terminal.")
                     break
             except Exception:
                 pass
             if sys.platform == "darwin":
                 out["pistas"].append(
-                    "En macOS Claude Code guarda la sesión en el Llavero, no en un archivo: "
-                    "Jarvis todavía no la lee de ahí.")
+                    "On macOS Claude Code stores the session in the Keychain, not in a file: "
+                    "Jarvis doesn't read it from there yet.")
         elif cred.get("json_valido") and "claudeAiOauth" not in (cred.get("claves") or []):
             out["pistas"].append(
-                "El archivo existe pero NO trae `claudeAiOauth`: es un login por API key/Console, "
-                "no por suscripción (Claude.ai). Hacé /login → «Claude account with subscription».")
+                "The file exists but has NO `claudeAiOauth`: it's an API key/Console login, "
+                "not a subscription (Claude.ai). Run /login → 'Claude account with subscription'.")
     else:
         out["archivos"] = [_info_archivo(p) for p in spec.get("principales", spec.get("files", []))]
         if not out["logueado"]:
-            out["pistas"].append(f"No se encontró sesión de {spec['label']}. Cómo loguear: "
+            out["pistas"].append(f"No session found for {spec['label']}. How to sign in: "
                                  f"{spec.get('como_loguear', '')}")
     return out
 

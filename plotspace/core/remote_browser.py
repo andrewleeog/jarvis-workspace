@@ -220,14 +220,14 @@ class Sesion:
     @classmethod
     async def crear(cls, ancho: int = 1280, alto: int = 800):
         if _pool.vivas >= MAX_SESIONES:
-            raise BrowserError('demasiadas pestañas del browser abiertas')
+            raise BrowserError('too many browser tabs open')
         ancho = max(MIN_ANCHO, min(int(ancho or 1280), MAX_ANCHO))
         alto = max(MIN_ALTO, min(int(alto or 800), MAX_ALTO))
         b = await _pool.browser()
         cola: asyncio.Queue = asyncio.Queue(maxsize=4)
         ctx = await b.new_context(viewport={'width': ancho, 'height': alto},
                                   device_scale_factor=1, user_agent=_UA,
-                                  locale='es-AR')
+                                  locale='en-US')
         await ctx.route('**/*', _guard)
         page = await ctx.new_page()
         cdp = await ctx.new_cdp_session(page)
@@ -259,9 +259,9 @@ class Sesion:
             ssrf.url_destino_segura, url, _puertos_loopback())
         if not ok:
             if 'host interno' in str(motivo):
-                motivo = ('ese localhost no es un servidor de desarrollo detectado en tus '
-                          'terminales (solo se abren esos puertos)')
-            raise BrowserError(f'URL no permitida: {motivo}')
+                motivo = ('that localhost is not a dev server detected in your '
+                          'terminals (only those ports get opened)')
+            raise BrowserError(f'URL not allowed: {motivo}')
         await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
         await self._emitir_nav()
 

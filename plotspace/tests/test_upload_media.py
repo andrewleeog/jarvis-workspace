@@ -69,7 +69,7 @@ def test_imagen_multipart_usa_tope_de_imagen():
     try:
         r = _post_media(client, b'i' * 5000, 'foto.png', 'image/png')
         assert r.status_code == 413, r.text
-        assert 'Imagen' in r.json()['detail']
+        assert 'Image' in r.json()['detail']
     finally:
         terminals.MAX_UPLOAD_BYTES = prev
 
